@@ -102,7 +102,7 @@ export function MedicineForm() {
   }
 
   return (
-    <div className="pb-8">
+    <div className="mx-auto h-dvh max-h-full w-full max-w-md overflow-y-auto overscroll-contain pb-8">
       <header className="app-header flex items-center gap-1 border-b bg-background px-2 py-3">
         <Button asChild variant="ghost" size="icon" aria-label="Back">
           <Link to="/medicines">
