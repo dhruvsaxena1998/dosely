@@ -215,6 +215,25 @@
         box-shadow: var(--elevation);
     }
 
+    /* A screen's top bar. Installed on an iOS home screen the page runs
+       full-bleed to the physical top, but a stuck header is pinned below the
+       status bar, so the strip above it fills with whatever has scrolled past.
+       The bar paints its own background up through that strip instead. */
+    .app-header {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
+
+    .app-header::before {
+        content: '';
+        position: absolute;
+        inset-inline: 0;
+        bottom: 100%;
+        height: 100vh;
+        background: inherit;
+    }
+
     /* Missed doses read as a gap in the strip, never as an error. */
     .hatch {
         background-image: repeating-linear-gradient(
