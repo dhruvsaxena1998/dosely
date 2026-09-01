@@ -1,15 +1,26 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ChevronLeft, ChevronRight, CircleCheck, Pill } from 'lucide-react'
+import { CalendarDays, ChevronLeft, ChevronRight, CircleCheck, Pill } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { DayStrip } from '@/components/DayStrip'
 import { DoseRow } from '@/components/DoseRow'
 import { EmptyState } from '@/components/EmptyState'
 import { MetaLine } from '@/components/MetaLine'
 import { SlotHeading } from '@/components/SlotHeading'
-import { BACKFILL_DAYS, formatDayLong, formatWithYear, relativeDayLabel, shiftKey, today } from '@/lib/dates'
+import {
+  BACKFILL_DAYS,
+  formatDayLong,
+  formatWithYear,
+  isValidKey,
+  maxKey,
+  minKey,
+  relativeDayLabel,
+  shiftKey,
+  today,
+} from '@/lib/dates'
 import { loadExamples } from '@/lib/examples'
-import { dosesOn, groupMedicines } from '@/lib/schedule'
+import { dosesOn, groupMedicines, scheduleHorizon } from '@/lib/schedule'
 import { slotLabel, sortSlots, type SlotId } from '@/lib/slots'
 import { setDose, useDatabase } from '@/lib/store'
 
@@ -17,6 +28,7 @@ export function Today() {
   const db = useDatabase()
   const now = today()
   const [date, setDate] = useState(now)
+  const [picking, setPicking] = useState(false)
 
   const doses = useMemo(() => dosesOn(db, date, now), [db, date, now])
   const hasMedicines = groupMedicines(db.medicines).length > 0
@@ -33,6 +45,15 @@ export function Today() {
 
   const left = doses.filter((d) => !d.entry).length
   const earliest = shiftKey(now, -BACKFILL_DAYS)
+  // Walking forward stops where the last course runs out. Past that every day is
+  // empty, and an arrow that only ever finds "nothing due" is a lie about depth.
+  const latest = useMemo(() => scheduleHorizon(db, now), [db, now])
+  const planned = date > now
+
+  function goTo(next: string) {
+    if (!isValidKey(next)) return
+    setDate(minKey(maxKey(next, earliest), latest))
+  }
 
   return (
     <div>
@@ -47,27 +68,51 @@ export function Today() {
           >
             <ChevronLeft className="size-5" />
           </Button>
-          <div className="flex-1 text-center">
+          <button
+            type="button"
+            aria-label="Pick a date"
+            aria-expanded={picking}
+            onClick={() => setPicking(!picking)}
+            className="flex-1 rounded-lg py-0.5 text-center"
+          >
             <h1 className="type-display text-2xl">{relativeDayLabel(date, now)}</h1>
             <MetaLine
               className="mt-1.5 tracking-[0.1em]"
               parts={
-                doses.length > 0
-                  ? [formatWithYear(date), left === 0 ? 'All done' : `${left} left`]
-                  : [formatWithYear(date)]
+                doses.length === 0
+                  ? [formatWithYear(date)]
+                  : planned
+                    ? [formatWithYear(date), `${doses.length} due`]
+                    : [formatWithYear(date), left === 0 ? 'All done' : `${left} left`]
               }
             />
-          </div>
+          </button>
           <Button
             variant="ghost"
             size="icon"
             aria-label="Next day"
-            disabled={date >= now}
+            disabled={date >= latest}
             onClick={() => setDate(shiftKey(date, 1))}
           >
             <ChevronRight className="size-5" />
           </Button>
         </div>
+        {picking ? (
+          <div className="mt-3 flex items-center gap-2 px-1">
+            <Input
+              type="date"
+              aria-label="Date"
+              className="h-9"
+              value={date}
+              min={earliest}
+              max={latest}
+              onChange={(e) => goTo(e.target.value)}
+            />
+            <Button variant="outline" size="sm" disabled={date === now} onClick={() => setDate(now)}>
+              Today
+            </Button>
+          </div>
+        ) : null}
         {doses.length > 0 ? (
           <div className="mt-3 px-1">
             <DayStrip doses={doses} />
@@ -89,7 +134,11 @@ export function Today() {
           </Button>
         </EmptyState>
       ) : doses.length === 0 ? (
-        <EmptyState icon={CircleCheck} title="Nothing due" body={`Nothing is scheduled for ${formatDayLong(date)}.`} />
+        <EmptyState
+          icon={planned ? CalendarDays : CircleCheck}
+          title="Nothing due"
+          body={`Nothing is scheduled for ${formatDayLong(date)}.`}
+        />
       ) : (
         <div className="space-y-7 px-4 py-6">
           {bySlot.map(({ slot, doses: slotDoses }) => (
@@ -104,6 +153,7 @@ export function Today() {
                   <DoseRow
                     key={dose.group.groupId}
                     dose={dose}
+                    planned={planned}
                     onToggleTaken={() =>
                       setDose(dose.group.groupId, date, slot, dose.outcome === 'taken' ? null : 'taken')
                     }
@@ -115,7 +165,11 @@ export function Today() {
               </div>
             </section>
           ))}
-          {date < now ? (
+          {planned ? (
+            <p className="type-data px-1 text-center text-[11px] text-muted-foreground">
+              Planned. You can tick it on the day.
+            </p>
+          ) : date < now ? (
             <p className="type-data px-1 text-center text-[11px] text-muted-foreground">
               You can go back {BACKFILL_DAYS} days. Anything older is locked.
             </p>

@@ -85,6 +85,32 @@ export function nextDueDate(g: MedicineGroup, from: DateKey = today()): DateKey 
   return undefined
 }
 
+/** The last date this medicine ever schedules a dose, scanning back from its end. */
+export function lastDueDate(g: MedicineGroup): DateKey | undefined {
+  const { start, end } = groupSpan(g)
+  let cursor = shiftKey(end, -1)
+  while (cursor >= start) {
+    if (scheduledSlotsOn(g, cursor).length > 0) return cursor
+    cursor = shiftKey(cursor, -1)
+  }
+  return undefined
+}
+
+/**
+ * How far forward it is worth looking. Past this date every course has run out,
+ * so there is nothing to show and the Today screen stops walking. Never earlier
+ * than `ref`, so the horizon is a date you can always reach.
+ */
+export function scheduleHorizon(db: Database, ref: DateKey = today()): DateKey {
+  let horizon = ref
+  for (const g of groupMedicines(db.medicines)) {
+    if (isDeleted(g)) continue
+    const last = lastDueDate(g)
+    if (last) horizon = maxKey(horizon, last)
+  }
+  return horizon
+}
+
 export type CourseStatus = 'upcoming' | 'active' | 'stopped' | 'finished'
 
 export function courseStatus(g: MedicineGroup, ref: DateKey = today()): CourseStatus {
