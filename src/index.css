@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+@import "./styles/themes.css";
 
 /* Self-hosted so the app still looks right with no network, which is the point of a PWA. */
 @import "@fontsource-variable/archivo/wdth.css";
@@ -15,10 +16,10 @@
        than letter-spaced apart. Public Sans was drawn for public information
        notices, which is the right voice for a name you must read exactly.
        Plex Mono is the batch-and-expiry stamp. */
-    --font-display: 'Archivo Variable', ui-sans-serif, system-ui, sans-serif;
-    --font-heading: var(--font-display);
-    --font-sans: 'Public Sans Variable', ui-sans-serif, system-ui, sans-serif;
-    --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace;
+    --font-display: var(--display-family);
+    --font-heading: var(--display-family);
+    --font-sans: var(--sans-family);
+    --font-mono: var(--mono-family);
 
     --color-taken: var(--taken);
     --color-taken-foreground: var(--taken-foreground);
@@ -28,6 +29,10 @@
     --color-skipped-contrast: var(--skipped-contrast);
     --color-missed: var(--missed);
     --color-missed-foreground: var(--missed-foreground);
+
+    --color-rule-taken: var(--rule-taken);
+    --color-rule-skipped: var(--rule-skipped);
+    --color-rule-quiet: var(--rule-quiet);
 
     --color-sidebar-ring: var(--sidebar-ring);
     --color-sidebar-border: var(--sidebar-border);
@@ -63,89 +68,59 @@
     --radius-2xl: calc(var(--radius) * 1.8);
 }
 
-/* Paper and foil. A cool card stock rather than a warm cream, because the
-   material this app borrows from is printed aluminium, not a paperback. */
-:root {
+/*
+ * The contract every palette fills in. Only the things a palette may leave
+ * unset live here; the colours themselves belong to a palette, including
+ * Foil's, so that no palette has to out-specify a default to be seen.
+ *
+ * A theme varies four axes, not one:
+ *   colour     the token set below
+ *   type       three families, plus how the display face is actually set
+ *   form       corner radius and how heavy a rule is drawn
+ *   elevation  whether a surface casts a shadow, and what kind
+ *
+ * :where() zeroes the specificity of the whole block. @import hoists the
+ * palettes above this file, so on equal specificity a plain :root would win
+ * every tie and no palette could change its own corners. These are fallbacks
+ * and they are written so they can never out-rank the thing they back up.
+ */
+:where(:root) {
     --radius: 0.625rem;
     --pocket-radius: 0.45rem;
 
-    --background: oklch(0.973 0.004 250);
-    --foreground: oklch(0.215 0.022 248);
-    --card: oklch(1 0 0);
-    --card-foreground: oklch(0.215 0.022 248);
-    --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.215 0.022 248);
-    --primary: oklch(0.5 0.095 212);
-    --primary-foreground: oklch(0.99 0.005 210);
-    --secondary: oklch(0.945 0.006 250);
-    --secondary-foreground: oklch(0.3 0.022 248);
-    --muted: oklch(0.945 0.006 250);
-    --muted-foreground: oklch(0.505 0.016 250);
-    --accent: oklch(0.93 0.014 220);
-    --accent-foreground: oklch(0.28 0.032 220);
-    --destructive: oklch(0.55 0.18 25);
-    --border: oklch(0.895 0.008 250);
-    --input: oklch(0.885 0.008 250);
-    --ring: oklch(0.6 0.09 212);
+    /* A hairline unless a palette says otherwise. Neo-brutalism says otherwise. */
+    --border-weight: 1px;
+    /* Most palettes are flat. Those that are not are not subtle about it. */
+    --elevation: none;
+    /* How an unused pocket reads as recessed. */
+    --pocket-recess: inset 0 1.5px 2.5px color-mix(in oklab, var(--foreground) 20%, transparent);
+    /* A filled pocket only glows where the palette asks for it, and it glows
+       in whatever colour it was filled with. */
+    --pocket-glow: none;
+    --glow-tint: var(--taken);
 
-    --taken: oklch(0.52 0.1 210);
-    --taken-foreground: oklch(0.38 0.08 212);
-    --taken-contrast: oklch(0.99 0.005 210);
-    --skipped: oklch(0.63 0.1 72);
-    --skipped-foreground: oklch(0.45 0.08 68);
-    --skipped-contrast: oklch(0.99 0.01 80);
-    --missed: oklch(0.8 0.012 250);
-    --missed-foreground: oklch(0.56 0.014 250);
+    /* The rule around a dose row. A 35% tint reads as a hairline in a colour
+       and disappears at three pixels, so palettes that draw a heavy rule pin
+       these to the border colour and let the fill carry the state instead. */
+    --rule-taken: color-mix(in oklab, var(--taken) 35%, transparent);
+    --rule-skipped: color-mix(in oklab, var(--skipped) 40%, transparent);
+    --rule-quiet: var(--border);
+    /* Two textures, because they are not the same kind of thing. A scanline is
+       on the glass and belongs over everything; a layout grid or paper grain is
+       in the stock and belongs under it. */
+    --surface-texture: none;
+    --ground-texture: none;
+    --ground-texture-size: auto;
 
-    --sidebar: oklch(0.973 0.004 250);
-    --sidebar-foreground: oklch(0.215 0.022 248);
-    --sidebar-primary: oklch(0.5 0.095 212);
-    --sidebar-primary-foreground: oklch(0.99 0.005 210);
-    --sidebar-accent: oklch(0.93 0.014 220);
-    --sidebar-accent-foreground: oklch(0.28 0.032 220);
-    --sidebar-border: oklch(0.895 0.008 250);
-    --sidebar-ring: oklch(0.6 0.09 212);
-}
-
-/* The medicine cabinet at night. Deep petrol rather than black, so the accent
-   belongs to the surface instead of sitting on top of it. */
-.dark {
-    --background: oklch(0.185 0.026 240);
-    --foreground: oklch(0.945 0.006 240);
-    --card: oklch(0.235 0.028 240);
-    --card-foreground: oklch(0.945 0.006 240);
-    --popover: oklch(0.235 0.028 240);
-    --popover-foreground: oklch(0.945 0.006 240);
-    --primary: oklch(0.74 0.1 205);
-    --primary-foreground: oklch(0.19 0.03 210);
-    --secondary: oklch(0.285 0.028 240);
-    --secondary-foreground: oklch(0.93 0.006 240);
-    --muted: oklch(0.285 0.028 240);
-    --muted-foreground: oklch(0.68 0.014 240);
-    --accent: oklch(0.3 0.024 230);
-    --accent-foreground: oklch(0.94 0.01 230);
-    --destructive: oklch(0.65 0.17 25);
-    --border: oklch(0.98 0.01 240 / 13%);
-    --input: oklch(0.98 0.01 240 / 17%);
-    --ring: oklch(0.66 0.09 205);
-
-    --taken: oklch(0.7 0.1 203);
-    --taken-foreground: oklch(0.82 0.08 203);
-    --taken-contrast: oklch(0.17 0.03 210);
-    --skipped: oklch(0.74 0.1 75);
-    --skipped-foreground: oklch(0.84 0.08 78);
-    --skipped-contrast: oklch(0.19 0.03 70);
-    --missed: oklch(0.38 0.014 240);
-    --missed-foreground: oklch(0.62 0.014 240);
-
-    --sidebar: oklch(0.185 0.018 240);
-    --sidebar-foreground: oklch(0.945 0.006 240);
-    --sidebar-primary: oklch(0.74 0.1 205);
-    --sidebar-primary-foreground: oklch(0.19 0.03 210);
-    --sidebar-accent: oklch(0.3 0.024 230);
-    --sidebar-accent-foreground: oklch(0.94 0.01 230);
-    --sidebar-border: oklch(0.98 0.01 240 / 13%);
-    --sidebar-ring: oklch(0.66 0.09 205);
+    /* Safe generic setting. Every palette states its own, including Foil,
+       because a width axis is Archivo's alone and must not be faked onto a
+       face that does not have one. */
+    --display-weight: 700;
+    --display-stretch: 100%;
+    --display-tracking: 0;
+    --display-transform: uppercase;
+    --eyebrow-tracking: 0.14em;
+    --eyebrow-weight: 500;
 }
 
 @layer base {
@@ -153,13 +128,28 @@
         @apply border-border;
     }
     html {
-        @apply font-sans;
+        @apply font-sans bg-background;
         -webkit-tap-highlight-color: transparent;
     }
     body {
         @apply bg-background text-foreground;
         overscroll-behavior-y: none;
         text-rendering: optimizeLegibility;
+        background-image: var(--ground-texture);
+        background-size: var(--ground-texture-size);
+        background-attachment: fixed;
+    }
+    /* A phosphor tube is scanned all over, including behind the chrome, so the
+       texture is an overlay rather than a backdrop. It is a few percent of ink
+       and never takes a pointer event, so nothing below it becomes harder to
+       read or to press. */
+    body::after {
+        content: '';
+        position: fixed;
+        inset: 0;
+        z-index: 60;
+        pointer-events: none;
+        background-image: var(--surface-texture);
     }
     :focus-visible {
         @apply outline-2 outline-offset-2 outline-ring;
@@ -167,13 +157,16 @@
 }
 
 @layer components {
-    /* Wide and heavy. Archivo's width axis does the work that letter-spacing
-       usually fakes. */
+    /* The app's own voice. Every value is a palette's to set, because "wide and
+       heavy" is right for Archivo and wrong for Playfair, and a theme that
+       cannot say so is only a recolour. Casing lives here too, so a serif
+       palette can opt out of caps without every call site knowing. */
     .type-display {
         font-family: var(--font-display);
-        font-stretch: 112%;
-        font-weight: 760;
-        letter-spacing: -0.012em;
+        font-stretch: var(--display-stretch);
+        font-weight: var(--display-weight);
+        letter-spacing: var(--display-tracking);
+        text-transform: var(--display-transform);
         line-height: 1;
     }
 
@@ -181,9 +174,9 @@
     .type-eyebrow {
         font-family: var(--font-mono);
         font-size: 0.6875rem;
-        font-weight: 500;
+        font-weight: var(--eyebrow-weight);
         line-height: 1;
-        letter-spacing: 0.14em;
+        letter-spacing: var(--eyebrow-tracking);
         text-transform: uppercase;
     }
 
@@ -194,17 +187,32 @@
         letter-spacing: 0.01em;
     }
 
-    /* A pressed foil pocket. Empty ones are recessed; used ones are flat. */
+    /* A pressed pocket. Empty ones are recessed; used ones are flat and filled.
+       The one element every palette has to reinterpret rather than restyle. */
     .pocket {
         border-radius: var(--pocket-radius);
+        border-width: var(--border-weight);
         transition:
             background-color 160ms ease,
             border-color 160ms ease,
+            box-shadow 160ms ease,
             transform 200ms cubic-bezier(0.22, 1.2, 0.36, 1);
     }
 
     .pocket-empty {
-        box-shadow: inset 0 1.5px 2.5px color-mix(in oklab, var(--foreground) 20%, transparent);
+        box-shadow: var(--pocket-recess);
+    }
+
+    /* Only Cyberpunk cashes this in. The rest resolve it to none. */
+    .pocket-filled {
+        box-shadow: var(--pocket-glow);
+    }
+
+    /* A card, a dose row: anything that sits on the background as its own
+       sheet. Palettes decide how heavy its rule is and whether it lifts. */
+    .surface {
+        border-width: var(--border-weight);
+        box-shadow: var(--elevation);
     }
 
     /* Missed doses read as a gap in the strip, never as an error. */

@@ -1,0 +1,804 @@
+/*
+ * The nine presses.
+ *
+ * Every theme prints the same blister strip. What changes is the press: the
+ * stock it is printed on, the ink, the type, how square the corners are cut,
+ * how heavy the rule is, and whether the sheet casts a shadow. A theme that
+ * only swapped hues would not be a theme, it would be a tint.
+ *
+ * Each block sets the contract declared in index.css. Palettes are applied to
+ * <html data-palette="..."> and pair with the .dark class for mode, so a theme
+ * is two axes rather than one: which press, and whether the lights are on.
+ * The selectors are written to work nested too, which is what lets the picker
+ * show a live preview of a theme you have not switched to.
+ *
+ * Colour rules that hold across all nine, because they are load-bearing:
+ *   missed  is never red. It is an absence, not a fault, and it is always the
+ *           hatch so it survives Monochrome and every kind of colour blindness.
+ *   taken   is the only state that gets the theme's confident colour.
+ *   skipped is a deliberate act, so it reads as a different decision, not a
+ *           lesser one.
+ */
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   FOIL — the original, and the default. Aluminium on a cool card stock rather
+   than a warm cream, because the material this app borrows from is printed
+   aluminium, not a paperback. Archivo carries a real width axis, so headings
+   are genuinely wide instead of letter-spaced apart.
+   ═══════════════════════════════════════════════════════════════════════════ */
+[data-palette='foil'] {
+    --display-family: 'Archivo Variable', ui-sans-serif, system-ui, sans-serif;
+    --sans-family: 'Public Sans Variable', ui-sans-serif, system-ui, sans-serif;
+    --mono-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace;
+    /* Archivo's width axis does the work that letter-spacing usually fakes. */
+    --display-weight: 760;
+    --display-stretch: 112%;
+    --display-tracking: -0.012em;
+    --display-transform: uppercase;
+    --eyebrow-tracking: 0.14em;
+    --eyebrow-weight: 500;
+
+    --background: oklch(0.973 0.004 250);
+    --foreground: oklch(0.215 0.022 248);
+    --card: oklch(1 0 0);
+    --card-foreground: oklch(0.215 0.022 248);
+    --popover: oklch(1 0 0);
+    --popover-foreground: oklch(0.215 0.022 248);
+    --primary: oklch(0.5 0.095 212);
+    --primary-foreground: oklch(0.99 0.005 210);
+    --secondary: oklch(0.945 0.006 250);
+    --secondary-foreground: oklch(0.3 0.022 248);
+    --muted: oklch(0.945 0.006 250);
+    --muted-foreground: oklch(0.505 0.016 250);
+    --accent: oklch(0.93 0.014 220);
+    --accent-foreground: oklch(0.28 0.032 220);
+    --destructive: oklch(0.55 0.18 25);
+    --border: oklch(0.895 0.008 250);
+    --input: oklch(0.885 0.008 250);
+    --ring: oklch(0.6 0.09 212);
+
+    --taken: oklch(0.52 0.1 210);
+    --taken-foreground: oklch(0.38 0.08 212);
+    --taken-contrast: oklch(0.99 0.005 210);
+    --skipped: oklch(0.63 0.1 72);
+    --skipped-foreground: oklch(0.45 0.08 68);
+    --skipped-contrast: oklch(0.99 0.01 80);
+    --missed: oklch(0.8 0.012 250);
+    --missed-foreground: oklch(0.525 0.014 250);
+}
+
+/* The medicine cabinet at night. Deep petrol rather than black, so the accent
+   belongs to the surface instead of sitting on top of it. */
+[data-palette='foil'].dark {
+    --background: oklch(0.185 0.026 240);
+    --foreground: oklch(0.945 0.006 240);
+    --card: oklch(0.235 0.028 240);
+    --card-foreground: oklch(0.945 0.006 240);
+    --popover: oklch(0.235 0.028 240);
+    --popover-foreground: oklch(0.945 0.006 240);
+    --primary: oklch(0.74 0.1 205);
+    --primary-foreground: oklch(0.19 0.03 210);
+    --secondary: oklch(0.285 0.028 240);
+    --secondary-foreground: oklch(0.93 0.006 240);
+    --muted: oklch(0.285 0.028 240);
+    --muted-foreground: oklch(0.68 0.014 240);
+    --accent: oklch(0.3 0.024 230);
+    --accent-foreground: oklch(0.94 0.01 230);
+    --destructive: oklch(0.65 0.17 25);
+    --border: oklch(0.98 0.01 240 / 13%);
+    --input: oklch(0.98 0.01 240 / 17%);
+    --ring: oklch(0.66 0.09 205);
+
+    --taken: oklch(0.7 0.1 203);
+    --taken-foreground: oklch(0.82 0.08 203);
+    --taken-contrast: oklch(0.17 0.03 210);
+    --skipped: oklch(0.74 0.1 75);
+    --skipped-foreground: oklch(0.84 0.08 78);
+    --skipped-contrast: oklch(0.19 0.03 70);
+    --missed: oklch(0.38 0.014 240);
+    --missed-foreground: oklch(0.62 0.014 240);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BAUHAUS — Weimar, 1923. Primaries on a grey sheet, black rules, hard
+   shadows. The pocket becomes a circle, because the circle, square and
+   triangle are the whole argument.
+   ═══════════════════════════════════════════════════════════════════════════ */
+[data-palette='bauhaus'] {
+    --rule-taken: var(--border);
+    --rule-skipped: var(--border);
+    --display-family: 'Outfit Variable', ui-sans-serif, system-ui, sans-serif;
+    --sans-family: 'Outfit Variable', ui-sans-serif, system-ui, sans-serif;
+    --mono-family: 'Outfit Variable', ui-monospace, monospace;
+    --display-weight: 900;
+    --display-stretch: 100%;
+    --display-tracking: -0.03em;
+    --display-transform: uppercase;
+    --eyebrow-tracking: 0.16em;
+    --eyebrow-weight: 700;
+
+    --radius: 0rem;
+    --pocket-radius: 9999px;
+    --border-weight: 2px;
+    --elevation: 4px 4px 0 0 var(--foreground);
+    --pocket-recess: none;
+
+    --background: #f0f0f0;
+    --foreground: #121212;
+    --card: #ffffff;
+    --card-foreground: #121212;
+    --popover: #ffffff;
+    --popover-foreground: #121212;
+    --primary: #d02020;
+    --primary-foreground: #ffffff;
+    --secondary: #e0e0e0;
+    --secondary-foreground: #121212;
+    --muted: #e0e0e0;
+    --muted-foreground: #4a4a4a;
+    --accent: #f0c020;
+    --accent-foreground: #121212;
+    --destructive: #d02020;
+    --border: #121212;
+    --input: #121212;
+    --ring: #1040c0;
+
+    --taken: #1040c0;
+    --taken-foreground: #0d3399;
+    --taken-contrast: #ffffff;
+    --skipped: #f0c020;
+    --skipped-foreground: #7a6210;
+    --skipped-contrast: #121212;
+    --missed: #9a9a9a;
+    --missed-foreground: #5c5c5c;
+}
+
+[data-palette='bauhaus'].dark {
+    --background: #121212;
+    --foreground: #f0f0f0;
+    --card: #1a1a1a;
+    --card-foreground: #f0f0f0;
+    --popover: #1a1a1a;
+    --popover-foreground: #f0f0f0;
+    --primary: #e83a3a;
+    --primary-foreground: #121212;
+    --secondary: #2a2a2a;
+    --secondary-foreground: #f0f0f0;
+    --muted: #2a2a2a;
+    --muted-foreground: #a8a8a8;
+    --accent: #f0c020;
+    --accent-foreground: #121212;
+    --destructive: #e83a3a;
+    --border: #f0f0f0;
+    --input: #f0f0f0;
+    --ring: #4a7ae8;
+
+    --taken: #4a7ae8;
+    --taken-foreground: #86a9f2;
+    --taken-contrast: #121212;
+    --skipped: #f0c020;
+    --skipped-foreground: #f0c020;
+    --skipped-contrast: #121212;
+    --missed: #5a5a5a;
+    --missed-foreground: #9a9a9a;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CYBERPUNK — neon on black glass. Corners barely cut, everything that matters
+   glows. The light mode is the same city at noon: the neons hold their hue but
+   drop their luminance far enough to read on white.
+   ═══════════════════════════════════════════════════════════════════════════ */
+[data-palette='cyberpunk'] {
+    --display-family: 'Orbitron Variable', ui-sans-serif, system-ui, sans-serif;
+    --sans-family: 'JetBrains Mono Variable', ui-monospace, monospace;
+    --mono-family: 'JetBrains Mono Variable', ui-monospace, monospace;
+    --display-weight: 800;
+    --display-stretch: 100%;
+    --display-tracking: 0.06em;
+    --display-transform: uppercase;
+    --eyebrow-tracking: 0.2em;
+    --eyebrow-weight: 500;
+
+    --radius: 0.125rem;
+    --pocket-radius: 0.125rem;
+    --border-weight: 1px;
+    --elevation: none;
+    --pocket-recess: inset 0 0 0 1px color-mix(in oklab, var(--foreground) 12%, transparent);
+    --pocket-glow: 0 0 4px var(--glow-tint), 0 0 10px color-mix(in oklab, var(--glow-tint) 40%, transparent);
+
+    --background: #eef0f4;
+    --foreground: #0a0a0f;
+    --card: #ffffff;
+    --card-foreground: #0a0a0f;
+    --popover: #ffffff;
+    --popover-foreground: #0a0a0f;
+    --primary: #00753e;
+    --primary-foreground: #ffffff;
+    --secondary: #e2e5ec;
+    --secondary-foreground: #0a0a0f;
+    --muted: #e2e5ec;
+    --muted-foreground: #575d6b;
+    --accent: #d9f7ea;
+    --accent-foreground: #00563a;
+    --destructive: #d1004a;
+    --border: #c8cdd8;
+    --input: #b9bfcc;
+    --ring: #00a85e;
+
+    --taken: #008a4b;
+    --taken-foreground: #00663a;
+    --taken-contrast: #ffffff;
+    --skipped: #b100b1;
+    --skipped-foreground: #8a008a;
+    --skipped-contrast: #ffffff;
+    --missed: #a9afbd;
+    --missed-foreground: #59606f;
+}
+
+[data-palette='cyberpunk'].dark {
+    --background: #0a0a0f;
+    --foreground: #e0e0e0;
+    --card: #12121a;
+    --card-foreground: #e0e0e0;
+    --popover: #12121a;
+    --popover-foreground: #e0e0e0;
+    --primary: #00ff88;
+    --primary-foreground: #0a0a0f;
+    --secondary: #1c1c2e;
+    --secondary-foreground: #e0e0e0;
+    --muted: #1c1c2e;
+    --muted-foreground: #8b93a5;
+    --accent: #1c1c2e;
+    --accent-foreground: #00d4ff;
+    --destructive: #ff3366;
+    --border: #2a2a3a;
+    --input: #35354a;
+    --ring: #00ff88;
+
+    --taken: #00ff88;
+    --taken-foreground: #00ff88;
+    --taken-contrast: #0a0a0f;
+    --skipped: #ff00ff;
+    --skipped-foreground: #ff5cff;
+    --skipped-contrast: #0a0a0f;
+    --missed: #3a3a4e;
+    --missed-foreground: #8790a3;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LUXURY — the boutique. Playfair set in wide caps, gold on bone, square
+   corners and a shadow so soft it reads as depth rather than lift. Skipped is
+   bordeaux: in this palette that is a wine, not an error.
+   ═══════════════════════════════════════════════════════════════════════════ */
+[data-palette='luxury'] {
+    --display-family: 'Playfair Display Variable', Georgia, serif;
+    --sans-family: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+    --mono-family: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+    --display-weight: 400;
+    --display-stretch: 100%;
+    --display-tracking: 0.1em;
+    --display-transform: uppercase;
+    --eyebrow-tracking: 0.22em;
+    --eyebrow-weight: 500;
+
+    --radius: 0rem;
+    --pocket-radius: 0rem;
+    --border-weight: 1px;
+    --elevation: 0 4px 24px rgb(0 0 0 / 0.08);
+    --pocket-recess: inset 0 1px 3px rgb(0 0 0 / 0.12);
+
+    --background: #f9f8f6;
+    --foreground: #1a1a1a;
+    --card: #ffffff;
+    --card-foreground: #1a1a1a;
+    --popover: #ffffff;
+    --popover-foreground: #1a1a1a;
+    --primary: #1a1a1a;
+    --primary-foreground: #f9f8f6;
+    --secondary: #ebe5de;
+    --secondary-foreground: #1a1a1a;
+    --muted: #ebe5de;
+    --muted-foreground: #6c6863;
+    --accent: #f2ead6;
+    --accent-foreground: #6b5310;
+    --destructive: #8b2d2d;
+    --border: #ddd6cc;
+    --input: #c9c1b5;
+    --ring: #a8862a;
+
+    --taken: #a8862a;
+    --taken-foreground: #7d631d;
+    --taken-contrast: #fffdf8;
+    --skipped: #8b2d2d;
+    --skipped-foreground: #6f2424;
+    --skipped-contrast: #fffdf8;
+    --missed: #c4bcb0;
+    --missed-foreground: #6d6860;
+}
+
+[data-palette='luxury'].dark {
+    --background: #1a1a1a;
+    --foreground: #f9f8f6;
+    --card: #242424;
+    --card-foreground: #f9f8f6;
+    --popover: #242424;
+    --popover-foreground: #f9f8f6;
+    --primary: #f9f8f6;
+    --primary-foreground: #1a1a1a;
+    --secondary: #2a2a2a;
+    --secondary-foreground: #f9f8f6;
+    --muted: #2a2a2a;
+    --muted-foreground: #9c9893;
+    --accent: #33301f;
+    --accent-foreground: #e8cf87;
+    --destructive: #c25555;
+    --border: #3a3a3a;
+    --input: #4a4a4a;
+    --ring: #d4af37;
+
+    --taken: #d4af37;
+    --taken-foreground: #e2c463;
+    --taken-contrast: #1a1a1a;
+    --skipped: #b85757;
+    --skipped-foreground: #cd8181;
+    --skipped-contrast: #1a1a1a;
+    --missed: #4a4642;
+    --missed-foreground: #8b8781;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MONOCHROME — no hue at all, which makes it the honest test of the whole
+   scheme. If the four states stay legible here they are legible to anyone,
+   because they are carried by fill, weight and pattern rather than colour.
+   ═══════════════════════════════════════════════════════════════════════════ */
+[data-palette='mono'] {
+    --rule-taken: var(--border);
+    --rule-skipped: var(--border);
+    --display-family: 'Playfair Display Variable', Georgia, serif;
+    --sans-family: 'Source Serif 4 Variable', Georgia, serif;
+    --mono-family: 'JetBrains Mono Variable', ui-monospace, monospace;
+    --display-weight: 700;
+    --display-stretch: 100%;
+    --display-tracking: -0.015em;
+    --display-transform: none;
+    --eyebrow-tracking: 0.18em;
+    --eyebrow-weight: 500;
+
+    --radius: 0rem;
+    --pocket-radius: 0rem;
+    --border-weight: 1px;
+    --elevation: none;
+    --pocket-recess: inset 0 0 0 1px #e5e5e5;
+
+    --background: #ffffff;
+    --foreground: #000000;
+    --card: #ffffff;
+    --card-foreground: #000000;
+    --popover: #ffffff;
+    --popover-foreground: #000000;
+    --primary: #000000;
+    --primary-foreground: #ffffff;
+    --secondary: #f5f5f5;
+    --secondary-foreground: #000000;
+    --muted: #f5f5f5;
+    --muted-foreground: #525252;
+    --accent: #eaeaea;
+    --accent-foreground: #000000;
+    --destructive: #000000;
+    --border: #000000;
+    --input: #000000;
+    --ring: #000000;
+
+    --taken: #000000;
+    --taken-foreground: #000000;
+    --taken-contrast: #ffffff;
+    --skipped: #737373;
+    --skipped-foreground: #525252;
+    --skipped-contrast: #ffffff;
+    --missed: #bdbdbd;
+    --missed-foreground: #6e6e6e;
+}
+
+[data-palette='mono'].dark {
+    --pocket-recess: inset 0 0 0 1px #2a2a2a;
+
+    --background: #000000;
+    --foreground: #ffffff;
+    --card: #0a0a0a;
+    --card-foreground: #ffffff;
+    --popover: #0a0a0a;
+    --popover-foreground: #ffffff;
+    --primary: #ffffff;
+    --primary-foreground: #000000;
+    --secondary: #171717;
+    --secondary-foreground: #ffffff;
+    --muted: #171717;
+    --muted-foreground: #a3a3a3;
+    --accent: #262626;
+    --accent-foreground: #ffffff;
+    --destructive: #ffffff;
+    --border: #ffffff;
+    --input: #ffffff;
+    --ring: #ffffff;
+
+    --taken: #ffffff;
+    --taken-foreground: #ffffff;
+    --taken-contrast: #000000;
+    --skipped: #8a8a8a;
+    --skipped-foreground: #a3a3a3;
+    --skipped-contrast: #000000;
+    --missed: #454545;
+    --missed-foreground: #8a8a8a;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   NEO-BRUTALISM — cream stock, three-pixel black rule, and a shadow that does
+   not pretend to be light. Nothing is soft and nothing apologises.
+   ═══════════════════════════════════════════════════════════════════════════ */
+[data-palette='brutal'] {
+    --rule-taken: var(--border);
+    --rule-skipped: var(--border);
+    --display-family: 'Space Grotesk Variable', ui-sans-serif, system-ui, sans-serif;
+    --sans-family: 'Space Grotesk Variable', ui-sans-serif, system-ui, sans-serif;
+    --mono-family: 'Space Grotesk Variable', ui-monospace, monospace;
+    --display-weight: 700;
+    --display-stretch: 100%;
+    --display-tracking: -0.035em;
+    --display-transform: uppercase;
+    --eyebrow-tracking: 0.14em;
+    --eyebrow-weight: 700;
+
+    --radius: 0rem;
+    --pocket-radius: 0rem;
+    --border-weight: 3px;
+    --elevation: 4px 4px 0 0 var(--foreground);
+    --pocket-recess: none;
+
+    --background: #fffdf5;
+    --foreground: #000000;
+    --card: #ffffff;
+    --card-foreground: #000000;
+    --popover: #ffffff;
+    --popover-foreground: #000000;
+    --primary: #ff6b6b;
+    --primary-foreground: #000000;
+    --secondary: #c4b5fd;
+    --secondary-foreground: #000000;
+    --muted: #f0ecdd;
+    --muted-foreground: #4a4a4a;
+    --accent: #ffd93d;
+    --accent-foreground: #000000;
+    --destructive: #ff6b6b;
+    --border: #000000;
+    --input: #000000;
+    --ring: #c4b5fd;
+
+    --taken: #10b981;
+    --taken-foreground: #0a7355;
+    --taken-contrast: #000000;
+    --skipped: #ffd93d;
+    --skipped-foreground: #6b5a0d;
+    --skipped-contrast: #000000;
+    --missed: #a8a196;
+    --missed-foreground: #57534a;
+}
+
+[data-palette='brutal'].dark {
+    --background: #0a0a0a;
+    --foreground: #fffdf5;
+    --card: #1a1a1a;
+    --card-foreground: #fffdf5;
+    --popover: #1a1a1a;
+    --popover-foreground: #fffdf5;
+    --primary: #ff6b6b;
+    --primary-foreground: #0a0a0a;
+    --secondary: #4c3f8a;
+    --secondary-foreground: #fffdf5;
+    --muted: #262626;
+    --muted-foreground: #b0aca2;
+    --accent: #ffd93d;
+    --accent-foreground: #0a0a0a;
+    --destructive: #ff6b6b;
+    --border: #fffdf5;
+    --input: #fffdf5;
+    --ring: #c4b5fd;
+
+    --taken: #10b981;
+    --taken-foreground: #3ddaa6;
+    --taken-contrast: #0a0a0a;
+    --skipped: #ffd93d;
+    --skipped-foreground: #ffd93d;
+    --skipped-contrast: #0a0a0a;
+    --missed: #4a4740;
+    --missed-foreground: #96918a;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   NEWSPRINT — black ink and one spot colour, the way a paper is actually run.
+   Playfair for the masthead, Lora for the column. Skipped takes the spot red
+   because that is the editor's pen, not an alarm. Where Swiss is a cold white
+   sheet on a grid, this is warm aged stock with a tooth to it, a hairline rule
+   and a hard offset shadow — the same two inks, an entirely different press.
+   ═══════════════════════════════════════════════════════════════════════════ */
+[data-palette='newsprint'] {
+    --rule-taken: var(--border);
+    --rule-skipped: var(--border);
+    --display-family: 'Playfair Display Variable', Georgia, serif;
+    --sans-family: 'Lora Variable', Georgia, serif;
+    --mono-family: 'JetBrains Mono Variable', ui-monospace, monospace;
+    --display-weight: 900;
+    --display-stretch: 100%;
+    --display-tracking: -0.025em;
+    --display-transform: uppercase;
+    --eyebrow-tracking: 0.16em;
+    --eyebrow-weight: 500;
+
+    --radius: 0rem;
+    --pocket-radius: 0rem;
+    --border-weight: 1px;
+    --elevation: 3px 3px 0 0 var(--foreground);
+    --pocket-recess: inset 0 0 0 1px color-mix(in oklab, var(--foreground) 18%, transparent);
+    /* The tooth of the stock. Two offset dot fields at a few percent, which is
+       enough to stop the ground reading as a screen. */
+    --ground-texture:
+        radial-gradient(color-mix(in oklab, var(--foreground) 7%, transparent) 0.5px, transparent 0.6px),
+        radial-gradient(color-mix(in oklab, var(--foreground) 5%, transparent) 0.5px, transparent 0.6px);
+    --ground-texture-size: 4px 4px, 7px 7px;
+
+    --background: #f4f1e8;
+    --foreground: #16130f;
+    --card: #fbf9f3;
+    --card-foreground: #16130f;
+    --popover: #fbf9f3;
+    --popover-foreground: #16130f;
+    --primary: #cc0000;
+    --primary-foreground: #ffffff;
+    --secondary: #e8e4d8;
+    --secondary-foreground: #16130f;
+    --muted: #e8e4d8;
+    --muted-foreground: #6a655a;
+    --accent: #f7e3e3;
+    --accent-foreground: #8f0000;
+    --destructive: #cc0000;
+    --border: #16130f;
+    --input: #16130f;
+    --ring: #cc0000;
+
+    --taken: #16130f;
+    --taken-foreground: #16130f;
+    --taken-contrast: #f4f1e8;
+    --skipped: #cc0000;
+    --skipped-foreground: #a30000;
+    --skipped-contrast: #ffffff;
+    --missed: #b5afa0;
+    --missed-foreground: #6a655a;
+}
+
+[data-palette='newsprint'].dark {
+    --background: #111111;
+    --foreground: #f9f9f7;
+    --card: #1a1a1a;
+    --card-foreground: #f9f9f7;
+    --popover: #1a1a1a;
+    --popover-foreground: #f9f9f7;
+    --primary: #ff3b3b;
+    --primary-foreground: #111111;
+    --secondary: #262626;
+    --secondary-foreground: #f9f9f7;
+    --muted: #262626;
+    --muted-foreground: #a3a3a3;
+    --accent: #3a1c1c;
+    --accent-foreground: #ff8080;
+    --destructive: #ff3b3b;
+    --border: #f9f9f7;
+    --input: #f9f9f7;
+    --ring: #ff3b3b;
+
+    --taken: #f9f9f7;
+    --taken-foreground: #f9f9f7;
+    --taken-contrast: #111111;
+    --skipped: #ff3b3b;
+    --skipped-foreground: #ff8080;
+    --skipped-contrast: #111111;
+    --missed: #4a4a48;
+    --missed-foreground: #93938f;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SWISS — the grid itself, made visible. What separates this from Newsprint is
+   not the palette, it is the structure: a cold pure white rather than paper, a
+   three-pixel rule rather than a hairline, no shadow at all, and the baseline
+   grid printed faintly under everything the way it sits under a Müller-
+   Brockmann sheet. Only the accomplished thing is allowed to be red.
+   ═══════════════════════════════════════════════════════════════════════════ */
+[data-palette='swiss'] {
+    --rule-taken: var(--border);
+    --rule-skipped: var(--border);
+    --display-family: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+    --sans-family: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+    --mono-family: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+    --display-weight: 700;
+    --display-stretch: 100%;
+    --display-tracking: -0.04em;
+    --display-transform: uppercase;
+    --eyebrow-tracking: 0.1em;
+    --eyebrow-weight: 600;
+
+    --radius: 0rem;
+    --pocket-radius: 0rem;
+    --border-weight: 3px;
+    --elevation: none;
+    --pocket-recess: inset 0 0 0 2px color-mix(in oklab, var(--foreground) 10%, transparent);
+    /* The 24px grid the layout is set on, drawn at 4% so it reads as structure
+       rather than decoration. Under the content, never over it. */
+    --ground-texture:
+        repeating-linear-gradient(
+            to bottom,
+            color-mix(in oklab, var(--foreground) 4%, transparent) 0 1px,
+            transparent 1px 24px
+        ),
+        repeating-linear-gradient(
+            to right,
+            color-mix(in oklab, var(--foreground) 4%, transparent) 0 1px,
+            transparent 1px 24px
+        );
+
+    --background: #ffffff;
+    --foreground: #000000;
+    --card: #ffffff;
+    --card-foreground: #000000;
+    --popover: #ffffff;
+    --popover-foreground: #000000;
+    --primary: #ff3000;
+    /* Near-black on the red rather than white: #FF3000 only reaches 3.7:1
+       against white, and the red is not negotiable. */
+    --primary-foreground: #1a0600;
+    --secondary: #f2f2f2;
+    --secondary-foreground: #000000;
+    --muted: #f2f2f2;
+    --muted-foreground: #555555;
+    --accent: #ffe9e4;
+    --accent-foreground: #b52200;
+    --destructive: #ff3000;
+    --border: #000000;
+    --input: #000000;
+    --ring: #ff3000;
+
+    --taken: #ff3000;
+    --taken-foreground: #c42500;
+    --taken-contrast: #ffffff;
+    --skipped: #6b6b6b;
+    --skipped-foreground: #4a4a4a;
+    --skipped-contrast: #ffffff;
+    --missed: #bcbcbc;
+    --missed-foreground: #6b6b6b;
+}
+
+[data-palette='swiss'].dark {
+    --background: #000000;
+    --foreground: #fefefe;
+    --card: #141414;
+    --card-foreground: #fefefe;
+    --popover: #141414;
+    --popover-foreground: #fefefe;
+    --primary: #ff3000;
+    --primary-foreground: #1a0600;
+    --secondary: #1f1f1f;
+    --secondary-foreground: #fefefe;
+    --muted: #1f1f1f;
+    --muted-foreground: #aaaaaa;
+    --accent: #3d1206;
+    --accent-foreground: #ff7a5c;
+    --destructive: #ff3000;
+    --border: #fefefe;
+    --input: #fefefe;
+    --ring: #ff3000;
+
+    --taken: #ff3000;
+    --taken-foreground: #ff7a5c;
+    --taken-contrast: #ffffff;
+    --skipped: #8a8a8a;
+    --skipped-foreground: #aaaaaa;
+    --skipped-contrast: #0a0a0a;
+    --missed: #454545;
+    --missed-foreground: #8a8a8a;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TERMINAL — a phosphor tube, which is not the same as painting everything
+   green. A real tube has intensity, and intensity is the only hierarchy it
+   has: dim for chrome, normal for text, bright for the thing you want read.
+   So body copy is a soft phosphor, saturated #33ff00 is spent only on what is
+   done, and amber is the second channel the way an amber tube was the other
+   thing you could buy. Surfaces are not tinted, because a terminal has no
+   cards — a panel is a rule, not a fill.
+   ═══════════════════════════════════════════════════════════════════════════ */
+[data-palette='terminal'] {
+    --display-family: 'JetBrains Mono Variable', ui-monospace, monospace;
+    --sans-family: 'JetBrains Mono Variable', ui-monospace, monospace;
+    --mono-family: 'JetBrains Mono Variable', ui-monospace, monospace;
+    --display-weight: 700;
+    --display-stretch: 100%;
+    --display-tracking: 0.04em;
+    --display-transform: uppercase;
+    --eyebrow-tracking: 0.2em;
+    --eyebrow-weight: 500;
+
+    --radius: 0rem;
+    --pocket-radius: 0rem;
+    --border-weight: 1px;
+    --elevation: none;
+    --pocket-recess: none;
+    /* Fine and faint. Coarse scanlines shred a 28px pocket into a barcode. */
+    --surface-texture: repeating-linear-gradient(
+        to bottom,
+        transparent 0 2px,
+        color-mix(in oklab, var(--foreground) 3%, transparent) 2px 3px
+    );
+
+    /* The line printer rather than the tube: dark ink on continuous paper. */
+    --background: #f7f7f2;
+    --foreground: #1a241a;
+    --card: #ffffff;
+    --card-foreground: #1a241a;
+    --popover: #ffffff;
+    --popover-foreground: #1a241a;
+    --primary: #1f6b1a;
+    --primary-foreground: #f7f7f2;
+    --secondary: #e8e9e0;
+    --secondary-foreground: #1a241a;
+    --muted: #e8e9e0;
+    --muted-foreground: #59674f;
+    --accent: #dfe6d9;
+    --accent-foreground: #1f5b1a;
+    --destructive: #b32020;
+    --border: #c6cdc0;
+    --input: #aab3a4;
+    --ring: #1f6b1a;
+
+    --taken: #1f7a1a;
+    --taken-foreground: #195e15;
+    --taken-contrast: #ffffff;
+    --skipped: #8a6300;
+    --skipped-foreground: #6e4f00;
+    --skipped-contrast: #ffffff;
+    --missed: #b6bdb0;
+    --missed-foreground: #66705f;
+}
+
+[data-palette='terminal'].dark {
+    --surface-texture: repeating-linear-gradient(
+        to bottom,
+        transparent 0 2px,
+        rgb(0 0 0 / 0.11) 2px 3px
+    );
+
+    --background: #060806;
+    /* Soft phosphor, not the signal colour. This is the whole fix. */
+    --foreground: #b9ccb1;
+    --card: #0c100c;
+    --card-foreground: #b9ccb1;
+    --popover: #0c100c;
+    --popover-foreground: #b9ccb1;
+    --primary: #33ff00;
+    --primary-foreground: #060806;
+    --secondary: #151c14;
+    --secondary-foreground: #b9ccb1;
+    --muted: #131a13;
+    --muted-foreground: #7d9276;
+    --accent: #172416;
+    --accent-foreground: #33ff00;
+    --destructive: #ff5555;
+    --border: #2b3a29;
+    --input: #3d5139;
+    --ring: #33ff00;
+
+    /* Full intensity is reserved for the thing that is done. */
+    --taken: #33ff00;
+    --taken-foreground: #5cff33;
+    --taken-contrast: #060806;
+    --skipped: #ffb000;
+    --skipped-foreground: #ffc44d;
+    --skipped-contrast: #060806;
+    --missed: #263524;
+    --missed-foreground: #6f8269;
+}

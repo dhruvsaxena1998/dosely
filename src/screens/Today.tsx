@@ -48,7 +48,7 @@ export function Today() {
             <ChevronLeft className="size-5" />
           </Button>
           <div className="flex-1 text-center">
-            <h1 className="type-display text-2xl uppercase">{relativeDayLabel(date, now)}</h1>
+            <h1 className="type-display text-2xl">{relativeDayLabel(date, now)}</h1>
             <MetaLine
               className="mt-1.5 tracking-[0.1em]"
               parts={

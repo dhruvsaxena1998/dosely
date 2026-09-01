@@ -1,11 +1,12 @@
 import { NavLink, Outlet } from 'react-router-dom'
-import { CalendarCheck, History, Pill } from 'lucide-react'
+import { CalendarCheck, History, Pill, Settings2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const TABS = [
   { to: '/', label: 'Today', icon: CalendarCheck, end: true },
   { to: '/medicines', label: 'Medicines', icon: Pill, end: false },
   { to: '/history', label: 'History', icon: History, end: false },
+  { to: '/settings', label: 'Settings', icon: Settings2, end: false },
 ]
 
 export function AppShell() {

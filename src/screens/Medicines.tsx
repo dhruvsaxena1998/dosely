@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Download, Pill, Plus, RotateCcw, Trash2, Upload } from 'lucide-react'
+import { Pill, Plus, RotateCcw, Trash2 } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -12,7 +12,6 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
-import { Appearance } from '@/components/Appearance'
 import { EmptyState } from '@/components/EmptyState'
 import { MetaLine } from '@/components/MetaLine'
 import { PageHeader } from '@/components/PageHeader'
@@ -24,8 +23,6 @@ import { courseStatus, groupMedicines, nextDueDate } from '@/lib/schedule'
 import { slotLabel, sortSlots } from '@/lib/slots'
 import {
   deleteMedicine,
-  exportDatabase,
-  importDatabase,
   restartMedicine,
   restoreMedicine,
   stopMedicine,
@@ -85,7 +82,6 @@ export function Medicines() {
           <Section title="Running" groups={active} now={now} onConfirm={setConfirm} />
           <Section title="Not started" groups={upcoming} now={now} onConfirm={setConfirm} />
           <Section title="Archive" groups={archived} now={now} onConfirm={setConfirm} />
-          <Settings />
         </div>
       )}
 
@@ -168,7 +164,7 @@ function MedicineCard({
   const due = deleted ? undefined : nextDueDate(group, now)
 
   return (
-    <article className="rounded-xl border bg-card p-3.5">
+    <article className="surface rounded-xl bg-card p-3.5">
       <div className="flex items-start justify-between gap-3">
         <h3 className="min-w-0 flex-1 text-[15px] font-semibold leading-snug tracking-[-0.01em]">{m.name}</h3>
         <span
@@ -234,66 +230,5 @@ function MedicineCard({
         )}
       </div>
     </article>
-  )
-}
-
-function Settings() {
-  const [message, setMessage] = useState<string | null>(null)
-
-  function download() {
-    const blob = new Blob([exportDatabase()], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `dosely-${today()}.json`
-    a.click()
-    URL.revokeObjectURL(url)
-  }
-
-  function upload(file: File) {
-    file.text().then((text) => {
-      const result = importDatabase(text)
-      setMessage(result.ok ? 'Backup restored.' : result.error)
-    })
-  }
-
-  return (
-    <div className="space-y-6 pt-2">
-      <section>
-        <Heading>Appearance</Heading>
-        <Appearance />
-      </section>
-
-      <section>
-        <Heading>Backup</Heading>
-        <p className="mb-3 text-xs leading-relaxed text-muted-foreground">
-          Everything lives in this browser only. Install the app to your home screen so the browser does not clear it,
-          and keep a copy somewhere safe.
-        </p>
-        <div className="flex gap-2">
-          <Button size="sm" variant="outline" onClick={download}>
-            <Download className="size-3.5" />
-            Export
-          </Button>
-          <Button size="sm" variant="outline" asChild>
-            <label>
-              <Upload className="size-3.5" />
-              Import
-              <input
-                type="file"
-                accept="application/json"
-                className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0]
-                  if (file) upload(file)
-                  e.target.value = ''
-                }}
-              />
-            </label>
-          </Button>
-        </div>
-        {message ? <p className="mt-2 text-xs text-muted-foreground">{message}</p> : null}
-      </section>
-    </div>
   )
 }

@@ -4,6 +4,7 @@ import { History } from '@/screens/History'
 import { MedicineForm } from '@/screens/MedicineForm'
 import { MedicineHistory } from '@/screens/MedicineHistory'
 import { Medicines } from '@/screens/Medicines'
+import { Settings } from '@/screens/Settings'
 import { Today } from '@/screens/Today'
 
 export default function App() {
@@ -14,6 +15,7 @@ export default function App() {
           <Route index element={<Today />} />
           <Route path="medicines" element={<Medicines />} />
           <Route path="history" element={<History />} />
+          <Route path="settings" element={<Settings />} />
         </Route>
         <Route path="medicines/new" element={<MedicineForm />} />
         <Route path="medicines/:groupId/edit" element={<MedicineForm />} />

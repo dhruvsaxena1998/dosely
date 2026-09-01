@@ -19,38 +19,91 @@ which rewrites every path to `index.html` so deep links work.
 
 Install it to your home screen. That is not decoration: Safari clears localStorage
 after seven days without a visit, and an installed web app is exempt from that cap.
-There is also an Export button on the Medicines screen.
+There is also an Export button on the Settings screen.
 
 ## The look
 
-The direction is **Foil**: the vernacular of a blister strip. That is where the app's
-one signature element comes from. The day is a strip of pockets across the header,
-one per dose in the order you take them, and each row's marker is a single pocket
-rather than a checkbox. Empty pockets are recessed, used ones are flat and filled.
-A glance at the strip answers how the day is going without reading a word.
-
-Type has three roles. Archivo carries the width axis, so headings are genuinely
-wide instead of letter-spaced apart. Public Sans was drawn for public information
-notices, which is the right voice for a name you have to read exactly. IBM Plex
-Mono is the batch-and-expiry stamp: dates, counts, spans. All three are self-hosted
-through Fontsource, because a PWA that needs the network to look right is not
-offline.
-
-Display type is for the app's own words. Body type is for your data, so a medicine
-name is never set in wide caps.
-
-Light mode is cool paper and foil. Dark mode is a deep petrol rather than black, so
-the accent belongs to the surface instead of sitting on top of it. Taken is petrol,
-skipped is brass.
+The signature element is the **blister strip**. The day is a strip of pockets across
+the header, one per dose in the order you take them, and each row's marker is a
+single pocket rather than a checkbox. Empty pockets are recessed, used ones are flat
+and filled. A glance at the strip answers how the day is going without reading a
+word.
 
 **Missed is not red.** It draws as absence: a dashed hollow pocket in the list, a
-hatched gap in the adherence bar. Missed is defined here as the lack of a record,
-so it looks like one, and an app you open five times a day should not turn red at
-you over a course you are already living with. Red is reserved for delete.
+hatched gap in the adherence bar. Missed is defined here as the lack of a record, so
+it looks like one, and an app you open five times a day should not turn red at you
+over a course you are already living with. Red is reserved for delete.
 
-Theme follows the system by default and can be pinned to light or dark from the
-Medicines screen. The choice is applied before first paint, so a dark bedside
-launch never flashes white.
+### Themes
+
+Nine themes ship, and they are presses rather than tints. Every one prints the same
+strip; what changes is the stock, the ink, the type, how square the corners are cut,
+how heavy the rule is drawn, and whether a sheet casts a shadow. A theme that only
+swapped hues would not be a theme.
+
+| | The material |
+|---|---|
+| **Foil** | Aluminium on cool card stock. The default. |
+| **Bauhaus** | Primaries, black rules, and pockets cut as circles. |
+| **Cyberpunk** | Neon on black glass. The strip glows when it fills. |
+| **Luxury** | Gold on bone, set in wide Playfair caps. |
+| **Monochrome** | No colour at all. |
+| **Neo-brutalism** | Cream stock, a three-pixel rule, and a shadow that means it. |
+| **Newsprint** | Black ink and one spot red, the way a paper is run. |
+| **Swiss** | The grid, and exactly one colour for the thing you finished. |
+| **Terminal** | A phosphor tube, with amber for the second channel. |
+
+Where two themes could collide they are pulled apart on structure rather than hue.
+Swiss and Newsprint are both black and red on a pale ground, so Swiss takes a cold
+pure white, a three-pixel rule, no shadow and a visible baseline grid, while
+Newsprint takes warm aged stock with a tooth, a hairline rule, a hard offset shadow
+and a serif. Terminal is not green-on-black either: a tube's only hierarchy is
+intensity, so body copy is a soft phosphor and full-strength green is spent only on
+what is done.
+
+Theme and mode are **independent axes**: every palette has its own real light and
+dark, rather than nine palettes plus a tenth called dark. Both are set on the
+Settings screen, and both are applied before first paint, so a dark bedside launch
+never flashes white and a Terminal user never gets a white one.
+
+`src/styles/themes.css` holds the palettes and `src/index.css` declares the contract
+they fill in. A palette sets four kinds of thing, not one:
+
+- **colour** — the token set, including `taken` / `skipped` / `missed` / pending
+- **type** — three families, plus how the display face actually wants to be set,
+  because "wide and heavy" is right for Archivo and wrong for Playfair
+- **form** — `--radius`, `--pocket-radius`, and `--border-weight`
+- **elevation** — `--elevation`, `--pocket-recess`, `--pocket-glow`
+
+Texture comes in two kinds, because they are not the same thing. `--surface-texture`
+is on the glass and paints over everything, which is what a scanline is.
+`--ground-texture` is in the stock and paints under the content, which is what
+Swiss's 24px layout grid and Newsprint's paper tooth are.
+
+The defaults in `index.css` are wrapped in `:where()` so their specificity is zero.
+`@import` hoists the palettes above that file, and on equal specificity a plain
+`:root` would win every tie and no palette could change its own corners.
+
+Two rules hold across all nine, because they are load-bearing. `missed` is always
+the neutral hatch, so it survives Monochrome and every kind of colour blindness.
+`taken` is the only state that gets the theme's confident colour. Monochrome exists
+partly as the honest test of this: if the four states stay legible with no hue at
+all, they are carried by fill, weight and pattern, and they are legible to anyone.
+
+All eighteen theme/mode combinations meet WCAG AA — 4.5:1 for text, 3:1 for the
+glyph inside a filled pocket.
+
+### Type
+
+Type has three roles in every theme. A display face for the app's own words, a body
+face for your data, and a mono face for the batch-and-expiry stamp: dates, counts,
+spans. A medicine name is never set in wide caps.
+
+Fonts are self-hosted through Fontsource, because a PWA that needs the network to
+look right is not offline. A theme fetches its own families the first time it is
+used rather than up front, since carrying nine families to render the one you picked
+is not free, and the service worker caches them after that. The picker preloads on
+hover, so the switch has usually already landed by the time it is asked for.
 
 ## The model
 

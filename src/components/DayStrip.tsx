@@ -13,7 +13,7 @@ export function DayStrip({ doses }: { doses: Dose[] }) {
       {doses.map((dose) => (
         <span
           key={`${dose.group.groupId}-${dose.slot}`}
-          className={cn('pocket h-3.5 flex-1 border', OUTCOME_CELL[dose.outcome])}
+          className={cn('pocket h-3.5 flex-1', OUTCOME_CELL[dose.outcome])}
         />
       ))}
     </div>

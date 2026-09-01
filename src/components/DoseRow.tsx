@@ -17,7 +17,7 @@ export function DoseRow({
   const isSkipped = dose.outcome === 'skipped'
 
   return (
-    <div className={cn('flex items-stretch rounded-xl border transition-colors', OUTCOME_ROW[dose.outcome])}>
+    <div className={cn('surface flex items-stretch rounded-xl transition-colors', OUTCOME_ROW[dose.outcome])}>
       <button
         type="button"
         onClick={onToggleTaken}
@@ -27,7 +27,7 @@ export function DoseRow({
       >
         <span
           className={cn(
-            'pocket flex size-7 shrink-0 items-center justify-center border group-active:scale-[0.86]',
+            'pocket flex size-7 shrink-0 items-center justify-center group-active:scale-[0.86]',
             OUTCOME_POCKET[dose.outcome],
           )}
         >
@@ -64,8 +64,8 @@ export function DoseRow({
         aria-pressed={isSkipped}
         aria-label={isSkipped ? `Un-skip ${dose.name}` : `Skip ${dose.name}`}
         className={cn(
-          'flex w-11 shrink-0 items-center justify-center rounded-r-xl border-l text-muted-foreground/60 transition-colors active:opacity-60',
-          isSkipped ? 'border-skipped/35 text-skipped-foreground' : 'border-border/60',
+          'flex w-11 shrink-0 items-center justify-center rounded-r-xl border-l-[length:var(--border-weight)] text-muted-foreground/60 transition-colors active:opacity-60',
+          isSkipped ? 'border-rule-skipped text-skipped-foreground' : 'border-border/60',
         )}
       >
         {isSkipped ? <Undo2 className="size-3.5" /> : <CircleSlash2 className="size-3.5" />}
