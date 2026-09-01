@@ -53,7 +53,7 @@ export function MedicineHistory() {
   const tally = adherenceFor(db, group, now)
 
   return (
-    <div>
+    <div className="mx-auto h-dvh max-h-full w-full max-w-md overflow-y-auto overscroll-contain">
       <header className="app-header flex items-center gap-1 border-b bg-background px-2 py-3">
         <Button asChild variant="ghost" size="icon" aria-label="Back">
           <Link to="/history">

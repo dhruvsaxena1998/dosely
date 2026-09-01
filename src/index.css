@@ -127,6 +127,14 @@
     * {
         @apply border-border;
     }
+    /* A definite height to hang the app shell off, so a screen can be exactly
+       as tall as the room it was actually given rather than as tall as the
+       hardware. iOS lays a standalone app out below the status bar, and 100dvh
+       counts that strip in. */
+    html,
+    body {
+        height: 100%;
+    }
     html {
         @apply font-sans bg-background;
         -webkit-tap-highlight-color: transparent;
@@ -236,23 +244,13 @@
         box-shadow: var(--elevation);
     }
 
-    /* A screen's top bar. Installed on an iOS home screen the page runs
-       full-bleed to the physical top, but a stuck header is pinned below the
-       status bar, so the strip above it fills with whatever has scrolled past.
-       The bar paints its own background up through that strip instead. */
+    /* A screen's top bar. It pins to the top of the screen's own scroll
+       container rather than to the page, so nothing can scroll past it into
+       the status bar strip above. */
     .app-header {
         position: sticky;
         top: 0;
         z-index: 10;
-    }
-
-    .app-header::before {
-        content: '';
-        position: absolute;
-        inset-inline: 0;
-        bottom: 100%;
-        height: 100vh;
-        background: inherit;
     }
 
     /* Missed doses read as a gap in the strip, never as an error. */
