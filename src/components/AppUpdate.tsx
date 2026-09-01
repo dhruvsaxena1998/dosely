@@ -15,15 +15,34 @@ function settled(worker: ServiceWorker) {
   })
 }
 
+/** What the server is serving right now, or undefined if it could not be asked. */
+async function deployedBuild() {
+  try {
+    const response = await fetch('/version.json', { cache: 'no-store' })
+    if (!response.ok) return undefined
+    const body: unknown = await response.json()
+    const id = (body as { buildId?: unknown })?.buildId
+    return typeof id === 'string' ? id : undefined
+  } catch {
+    return undefined
+  }
+}
+
 /**
  * An installed app runs from the copy its worker cached, so a fix shipped this
  * morning is not the one on the phone until that worker is replaced.
  *
- * Replacing it is not enough on its own. The generated registration skips
- * waiting and claims the page, but nothing in it reloads: the new bundle lands
- * in the cache while the tab keeps running the one it already parsed. So this
- * waits for the incoming worker to take over and then reloads onto it, and
- * prints the build it is running so a reload can be told from a no-op.
+ * The worker replaces itself readily enough — it skips waiting, claims the page
+ * and is checked on every launch — which is exactly why asking it whether an
+ * update is arriving gives the wrong answer. By the time anyone presses this,
+ * the new bundle is usually already cached and active, while the tab goes on
+ * running the one it parsed at launch. A worker with nothing to install is
+ * indistinguishable from a worker that quietly installed everything already.
+ *
+ * So the question put here is not "is a new worker coming" but "is this page
+ * running what is deployed", which the server can answer outright. A mismatch
+ * is settled the only way it can be: take the newest worker, then reload onto
+ * it, and let the build line below say which one that turned out to be.
  */
 export function AppUpdate() {
   const [phase, setPhase] = useState<Phase>('idle')
@@ -31,30 +50,32 @@ export function AppUpdate() {
 
   async function press() {
     setPhase('checking')
+
+    const deployed = await deployedBuild()
+    if (deployed === __BUILD_ID__) {
+      setPhase('current')
+      return
+    }
+
+    // Either a newer build is deployed, or the network could not be reached to
+    // rule it out. Both end in a reload: offline it costs a repaint from the
+    // cache, and online it is the point.
+    setPhase('updating')
     try {
       const registration =
         'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration() : undefined
-
-      // No worker is a dev build or a browser without one, where a plain reload
-      // is both the right thing and the only thing available.
-      if (!registration) return window.location.reload()
-
-      await registration.update()
-
-      const incoming = registration.installing ?? registration.waiting
-      if (!incoming) {
-        setPhase('current')
-        return
+      if (registration) {
+        await registration.update()
+        // Reloading mid-install would be served by the worker on its way out,
+        // handing back the very build we are trying to leave.
+        const incoming = registration.installing ?? registration.waiting
+        if (incoming) await settled(incoming)
       }
-
-      setPhase('updating')
-      await settled(incoming)
-      window.location.reload()
     } catch {
-      // A check that cannot reach the network is not worth an error state; the
-      // build line below already says what you are running.
-      setPhase('idle')
+      // A worker that cannot be updated is no reason not to reload; the page
+      // may still be behind a worker that already has the newer copy.
     }
+    window.location.reload()
   }
 
   return (
