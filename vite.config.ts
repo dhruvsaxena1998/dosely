@@ -1,5 +1,5 @@
 import { execSync } from 'node:child_process'
-import { defineConfig } from 'vite'
+import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
@@ -15,6 +15,20 @@ function buildId() {
   return sha ? `${stamp} \u00b7 ${sha.slice(0, 7)}` : stamp
 }
 
+/**
+ * The same name, written to a file the network can be asked for. A running page
+ * knows which build it is; only the server knows which build is deployed, and
+ * telling those apart is the whole job of the update check.
+ */
+function versionEndpoint(id: string): Plugin {
+  return {
+    name: 'dosely:version-endpoint',
+    generateBundle() {
+      this.emitFile({ type: 'asset', fileName: 'version.json', source: JSON.stringify({ buildId: id }) })
+    },
+  }
+}
+
 function headSha() {
   try {
     return execSync('git rev-parse HEAD', { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim()
@@ -24,9 +38,12 @@ function headSha() {
   }
 }
 
+const BUILD_ID = buildId()
+
 export default defineConfig({
-  define: { __BUILD_ID__: JSON.stringify(buildId()) },
+  define: { __BUILD_ID__: JSON.stringify(BUILD_ID) },
   plugins: [
+    versionEndpoint(BUILD_ID),
     react(),
     tailwindcss(),
     VitePWA({

@@ -19,7 +19,7 @@ import { relativeDayLabel, today } from '@/lib/dates'
 import { describeDuration, describeGroupSpan, describeRepeat } from '@/lib/describe'
 import { loadExamples } from '@/lib/examples'
 import type { MedicineGroup } from '@/lib/schedule'
-import { courseStatus, groupMedicines, nextDueDate } from '@/lib/schedule'
+import { courseStatus, groupMedicines, nextOpenDate } from '@/lib/schedule'
 import { slotLabel, sortSlots } from '@/lib/slots'
 import {
   deleteMedicine,
@@ -29,6 +29,7 @@ import {
   useDatabase,
 } from '@/lib/store'
 import { cn } from '@/lib/utils'
+import type { Database } from '@/types'
 
 type Confirm = { kind: 'stop'; group: MedicineGroup } | { kind: 'delete'; group: MedicineGroup } | null
 
@@ -79,9 +80,9 @@ export function Medicines() {
         </EmptyState>
       ) : (
         <div className="space-y-8 px-4 py-6">
-          <Section title="Running" groups={active} now={now} onConfirm={setConfirm} />
-          <Section title="Not started" groups={upcoming} now={now} onConfirm={setConfirm} />
-          <Section title="Archive" groups={archived} now={now} onConfirm={setConfirm} />
+          <Section title="Running" groups={active} db={db} now={now} onConfirm={setConfirm} />
+          <Section title="Not started" groups={upcoming} db={db} now={now} onConfirm={setConfirm} />
+          <Section title="Archive" groups={archived} db={db} now={now} onConfirm={setConfirm} />
         </div>
       )}
 
@@ -128,11 +129,13 @@ function Heading({ children }: { children: string }) {
 function Section({
   title,
   groups,
+  db,
   now,
   onConfirm,
 }: {
   title: string
   groups: MedicineGroup[]
+  db: Database
   now: string
   onConfirm: (c: Confirm) => void
 }) {
@@ -142,7 +145,7 @@ function Section({
       <Heading>{title}</Heading>
       <div className="space-y-2">
         {groups.map((g) => (
-          <MedicineCard key={g.groupId} group={g} now={now} onConfirm={onConfirm} />
+          <MedicineCard key={g.groupId} group={g} db={db} now={now} onConfirm={onConfirm} />
         ))}
       </div>
     </section>
@@ -151,17 +154,19 @@ function Section({
 
 function MedicineCard({
   group,
+  db,
   now,
   onConfirm,
 }: {
   group: MedicineGroup
+  db: Database
   now: string
   onConfirm: (c: Confirm) => void
 }) {
   const m = group.current
   const status = courseStatus(group, now)
   const deleted = Boolean(m.deletedAt)
-  const due = deleted ? undefined : nextDueDate(group, now)
+  const due = deleted ? undefined : nextOpenDate(db, group, now)
 
   return (
     <article className="surface rounded-xl bg-card p-3.5">

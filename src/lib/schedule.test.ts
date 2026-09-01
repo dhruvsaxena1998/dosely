@@ -10,6 +10,7 @@ import {
   isDoseDay,
   lastDueDate,
   nextDueDate,
+  nextOpenDate,
   scheduleHorizon,
 } from '@/lib/schedule'
 import type { Database, MedicineInput, MedicineRecord } from '@/types'
@@ -309,5 +310,65 @@ describe('the horizon of what is still to come', () => {
 
   it('is today when there are no medicines at all', () => {
     expect(scheduleHorizon(db([]), '2025-09-01')).toBe('2025-09-01')
+  })
+})
+
+describe('a dose already ticked is no longer due', () => {
+  const m = record({
+    name: 'Metformin 500MG',
+    slots: ['after-breakfast', 'after-dinner'],
+    repeatEveryDays: 1,
+    anchorDate: '2025-09-01',
+    durationValue: 3,
+    durationUnit: 'days',
+  })
+  const group = groupMedicines([m])[0]
+
+  function entry(date: string, slot: 'after-breakfast' | 'after-dinner', state: 'taken' | 'skipped') {
+    return {
+      [`${m.groupId}|${date}|${slot}`]: {
+        groupId: m.groupId,
+        date,
+        slot,
+        state,
+        at: `${date}T09:00:00.000Z`,
+        name: m.name,
+      },
+    }
+  }
+
+  it('still counts today while a slot is untouched', () => {
+    const log = entry('2025-09-01', 'after-breakfast', 'taken')
+    expect(nextOpenDate(db([m], log), group, '2025-09-01')).toBe('2025-09-01')
+  })
+
+  it('moves to tomorrow once every slot today is answered', () => {
+    const log = { ...entry('2025-09-01', 'after-breakfast', 'taken'), ...entry('2025-09-01', 'after-dinner', 'taken') }
+    expect(nextOpenDate(db([m], log), group, '2025-09-01')).toBe('2025-09-02')
+    // The schedule itself has not moved; only what is left of it has.
+    expect(nextDueDate(group, '2025-09-01')).toBe('2025-09-01')
+  })
+
+  it('treats a skip as answered, not as still owing', () => {
+    const log = {
+      ...entry('2025-09-01', 'after-breakfast', 'skipped'),
+      ...entry('2025-09-01', 'after-dinner', 'skipped'),
+    }
+    expect(nextOpenDate(db([m], log), group, '2025-09-01')).toBe('2025-09-02')
+  })
+
+  it('runs out when the whole course has been answered', () => {
+    const log = Object.assign(
+      {},
+      ...['2025-09-01', '2025-09-02', '2025-09-03'].flatMap((d) => [
+        entry(d, 'after-breakfast', 'taken'),
+        entry(d, 'after-dinner', 'taken'),
+      ]),
+    )
+    expect(nextOpenDate(db([m], log), group, '2025-09-01')).toBeUndefined()
+  })
+
+  it('does not reach back for a dose missed before today', () => {
+    expect(nextOpenDate(db([m]), group, '2025-09-02')).toBe('2025-09-02')
   })
 })
