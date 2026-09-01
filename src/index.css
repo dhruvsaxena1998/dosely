@@ -127,14 +127,6 @@
     * {
         @apply border-border;
     }
-    /* A definite height to hang the app shell off, so a screen can be exactly
-       as tall as the room it was actually given rather than as tall as the
-       hardware. iOS lays a standalone app out below the status bar, and 100dvh
-       counts that strip in. */
-    html,
-    body {
-        height: 100%;
-    }
     html {
         @apply font-sans bg-background;
         -webkit-tap-highlight-color: transparent;
@@ -244,9 +236,26 @@
         box-shadow: var(--elevation);
     }
 
-    /* A screen's top bar. It pins to the top of the screen's own scroll
-       container rather than to the page, so nothing can scroll past it into
-       the status bar strip above. */
+    /* A screen: as tall as the window, scrolling inside itself. A scroll
+       container clips its own content, so nothing can travel up past a stuck
+       header.
+
+       The frame pays for the status bar. An installed iOS app is laid out
+       full-bleed under the clock and 100dvh counts that strip in, so a
+       scrollport starting at the frame's top edge pins its header behind the
+       clock, where it reads as missing. Insetting the frame moves the whole
+       scrollport down instead; the strip it leaves above is the body's own
+       background, which is the colour the header would have painted anyway. */
+    .screen {
+        display: flex;
+        flex-direction: column;
+        height: 100dvh;
+        padding-top: env(safe-area-inset-top);
+        overflow: hidden;
+    }
+
+    /* A screen's top bar. It pins to the top of the screen's own scrollport
+       rather than to the page. */
     .app-header {
         position: sticky;
         top: 0;
