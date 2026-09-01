@@ -11,12 +11,7 @@ const TABS = [
 
 export function AppShell() {
   return (
-    <div className="mx-auto flex h-dvh max-h-full w-full max-w-md flex-col overflow-hidden">
-      {/* iOS lays the page out below the status bar but does not clip what
-          scrolls up into it, so a document-scrolled list paints through the
-          strip while the stuck header stays pinned under it. A real scroll
-          container clips its own content, which no amount of painting from
-          inside the header could do. */}
+    <div className="screen mx-auto w-full max-w-md">
       <main className="flex-1 overflow-y-auto overscroll-contain pb-24">
         <Outlet />
       </main>

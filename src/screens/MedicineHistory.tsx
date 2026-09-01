@@ -40,11 +40,13 @@ export function MedicineHistory() {
 
   if (!group) {
     return (
-      <div className="px-4 py-10 text-center text-sm text-muted-foreground">
-        That medicine is gone.{' '}
-        <Link to="/history" className="underline">
-          Back to history
-        </Link>
+      <div className="screen mx-auto w-full max-w-md">
+        <div className="px-4 py-10 text-center text-sm text-muted-foreground">
+          That medicine is gone.{' '}
+          <Link to="/history" className="underline">
+            Back to history
+          </Link>
+        </div>
       </div>
     )
   }
@@ -53,61 +55,63 @@ export function MedicineHistory() {
   const tally = adherenceFor(db, group, now)
 
   return (
-    <div className="mx-auto h-dvh max-h-full w-full max-w-md overflow-y-auto overscroll-contain">
-      <header className="app-header flex items-center gap-1 border-b bg-background px-2 py-3">
-        <Button asChild variant="ghost" size="icon" aria-label="Back">
-          <Link to="/history">
-            <ChevronLeft className="size-5" />
-          </Link>
-        </Button>
-        <h1 className="truncate text-base font-semibold tracking-[-0.01em]">{m.name}</h1>
-      </header>
+    <div className="screen mx-auto w-full max-w-md">
+      <div className="flex-1 overflow-y-auto overscroll-contain">
+        <header className="app-header flex items-center gap-1 border-b bg-background px-2 py-3">
+          <Button asChild variant="ghost" size="icon" aria-label="Back">
+            <Link to="/history">
+              <ChevronLeft className="size-5" />
+            </Link>
+          </Button>
+          <h1 className="truncate text-base font-semibold tracking-[-0.01em]">{m.name}</h1>
+        </header>
 
-      <div className="px-4 py-5">
-        <MetaLine
-          parts={[
-            describeRepeat(m.repeatEveryDays),
-            describeDuration(m.durationValue, m.durationUnit),
-            describeGroupSpan(group),
-          ]}
-        />
-        <AdherenceBar tally={tally} />
+        <div className="px-4 py-5">
+          <MetaLine
+            parts={[
+              describeRepeat(m.repeatEveryDays),
+              describeDuration(m.durationValue, m.durationUnit),
+              describeGroupSpan(group),
+            ]}
+          />
+          <AdherenceBar tally={tally} />
 
-        <div className="mt-4 grid grid-cols-4 gap-2">
-          <Stat label="Taken" value={tally.taken} className="text-taken-foreground" />
-          <Stat label="Skipped" value={tally.skipped} className="text-skipped-foreground" />
-          <Stat label="Missed" value={tally.missed} className="text-muted-foreground" />
-          <Stat label="Left" value={tally.pending} className="text-muted-foreground" />
+          <div className="mt-4 grid grid-cols-4 gap-2">
+            <Stat label="Taken" value={tally.taken} className="text-taken-foreground" />
+            <Stat label="Skipped" value={tally.skipped} className="text-skipped-foreground" />
+            <Stat label="Missed" value={tally.missed} className="text-muted-foreground" />
+            <Stat label="Left" value={tally.pending} className="text-muted-foreground" />
+          </div>
+
+          <ul className="mt-7 space-y-1.5">
+            {days.map(([date, items]) => (
+              <li key={date} className="flex items-start gap-3 rounded-lg border bg-card px-3 py-2">
+                <div className="w-[5rem] shrink-0">
+                  <div className="type-data text-[11px] font-medium uppercase tracking-[0.06em]">{formatDay(date)}</div>
+                  {nearDayLabel(date, now) ? (
+                    <div className="mt-0.5 text-[10px] text-muted-foreground">{nearDayLabel(date, now)}</div>
+                  ) : null}
+                </div>
+                <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                  {items.map((item) => (
+                    <div key={item.slot} className="flex items-center justify-between gap-2">
+                      <span className="truncate text-xs text-muted-foreground">{slotLabel(item.slot)}</span>
+                      <span
+                        className={cn(
+                          'type-data shrink-0 rounded-md px-2 py-1 text-[10px] uppercase tracking-[0.06em]',
+                          OUTCOME_CHIP[item.outcome],
+                        )}
+                      >
+                        {OUTCOME_LABEL[item.outcome]}
+                        {item.at ? ` ${formatTime(item.at)}` : ''}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </li>
+            ))}
+          </ul>
         </div>
-
-        <ul className="mt-7 space-y-1.5">
-          {days.map(([date, items]) => (
-            <li key={date} className="flex items-start gap-3 rounded-lg border bg-card px-3 py-2">
-              <div className="w-[5rem] shrink-0">
-                <div className="type-data text-[11px] font-medium uppercase tracking-[0.06em]">{formatDay(date)}</div>
-                {nearDayLabel(date, now) ? (
-                  <div className="mt-0.5 text-[10px] text-muted-foreground">{nearDayLabel(date, now)}</div>
-                ) : null}
-              </div>
-              <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                {items.map((item) => (
-                  <div key={item.slot} className="flex items-center justify-between gap-2">
-                    <span className="truncate text-xs text-muted-foreground">{slotLabel(item.slot)}</span>
-                    <span
-                      className={cn(
-                        'type-data shrink-0 rounded-md px-2 py-1 text-[10px] uppercase tracking-[0.06em]',
-                        OUTCOME_CHIP[item.outcome],
-                      )}
-                    >
-                      {OUTCOME_LABEL[item.outcome]}
-                      {item.at ? ` ${formatTime(item.at)}` : ''}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </li>
-          ))}
-        </ul>
       </div>
     </div>
   )

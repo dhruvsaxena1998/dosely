@@ -102,152 +102,154 @@ export function MedicineForm() {
   }
 
   return (
-    <div className="mx-auto h-dvh max-h-full w-full max-w-md overflow-y-auto overscroll-contain pb-8">
-      <header className="app-header flex items-center gap-1 border-b bg-background px-2 py-3">
-        <Button asChild variant="ghost" size="icon" aria-label="Back">
-          <Link to="/medicines">
-            <ChevronLeft className="size-5" />
-          </Link>
-        </Button>
-        <h1 className="type-display text-base uppercase">{groupId ? 'Edit medicine' : 'Add medicine'}</h1>
-      </header>
+    <div className="screen mx-auto w-full max-w-md">
+      <div className="flex-1 overflow-y-auto overscroll-contain pb-8">
+        <header className="app-header flex items-center gap-1 border-b bg-background px-2 py-3">
+          <Button asChild variant="ghost" size="icon" aria-label="Back">
+            <Link to="/medicines">
+              <ChevronLeft className="size-5" />
+            </Link>
+          </Button>
+          <h1 className="type-display text-base uppercase">{groupId ? 'Edit medicine' : 'Add medicine'}</h1>
+        </header>
 
-      <div className="space-y-6 px-4 py-5">
-        <div className="space-y-2">
-          <Label htmlFor="name" className="type-eyebrow text-muted-foreground">Name</Label>
-          <Input
-            id="name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Paracetamol 500MG or Crocin"
-            autoComplete="off"
-          />
-          <p className="text-xs text-muted-foreground">
-            Strength and alternate brands go in the name, exactly as the prescription reads.
-          </p>
-        </div>
+        <div className="space-y-6 px-4 py-5">
+          <div className="space-y-2">
+            <Label htmlFor="name" className="type-eyebrow text-muted-foreground">Name</Label>
+            <Input
+              id="name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Paracetamol 500MG or Crocin"
+              autoComplete="off"
+            />
+            <p className="text-xs text-muted-foreground">
+              Strength and alternate brands go in the name, exactly as the prescription reads.
+            </p>
+          </div>
 
-        <div className="space-y-2">
-          <Label className="type-eyebrow text-muted-foreground">Slots</Label>
-          <ToggleGroup
-            type="multiple"
-            value={slots}
-            onValueChange={(value) => setSlots(value as SlotId[])}
-            variant="outline"
-            className="grid w-full grid-cols-2 gap-2"
-          >
-            {SLOTS.map((slot) => (
-              <ToggleGroupItem
-                key={slot.id}
-                value={slot.id}
-                className={cn('justify-start px-3 text-[13px]', TOGGLE_ITEM, slot.id === 'anytime' && 'col-span-2')}
-              >
-                {slot.label}
-              </ToggleGroupItem>
-            ))}
-          </ToggleGroup>
-          <p className="text-xs text-muted-foreground">
-            One tick per slot per dose day. Twice a day means picking two slots.
-          </p>
-        </div>
+          <div className="space-y-2">
+            <Label className="type-eyebrow text-muted-foreground">Slots</Label>
+            <ToggleGroup
+              type="multiple"
+              value={slots}
+              onValueChange={(value) => setSlots(value as SlotId[])}
+              variant="outline"
+              className="grid w-full grid-cols-2 gap-2"
+            >
+              {SLOTS.map((slot) => (
+                <ToggleGroupItem
+                  key={slot.id}
+                  value={slot.id}
+                  className={cn('justify-start px-3 text-[13px]', TOGGLE_ITEM, slot.id === 'anytime' && 'col-span-2')}
+                >
+                  {slot.label}
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
+            <p className="text-xs text-muted-foreground">
+              One tick per slot per dose day. Twice a day means picking two slots.
+            </p>
+          </div>
 
-        <div className="space-y-2">
-          <Label className="type-eyebrow text-muted-foreground">Repeats</Label>
-          <ToggleGroup
-            type="single"
-            value={repeatMode}
-            onValueChange={(value) => value && setRepeatMode(value as RepeatMode)}
-            variant="outline"
-            className="grid w-full grid-cols-3 gap-2"
-          >
-            <ToggleGroupItem value="daily" className={TOGGLE_ITEM}>Daily</ToggleGroupItem>
-            <ToggleGroupItem value="weekly" className={TOGGLE_ITEM}>Weekly</ToggleGroupItem>
-            <ToggleGroupItem value="custom" className={TOGGLE_ITEM}>Every N days</ToggleGroupItem>
-          </ToggleGroup>
-          {repeatMode === 'custom' ? (
-            <div className="flex items-center gap-2 pt-1">
+          <div className="space-y-2">
+            <Label className="type-eyebrow text-muted-foreground">Repeats</Label>
+            <ToggleGroup
+              type="single"
+              value={repeatMode}
+              onValueChange={(value) => value && setRepeatMode(value as RepeatMode)}
+              variant="outline"
+              className="grid w-full grid-cols-3 gap-2"
+            >
+              <ToggleGroupItem value="daily" className={TOGGLE_ITEM}>Daily</ToggleGroupItem>
+              <ToggleGroupItem value="weekly" className={TOGGLE_ITEM}>Weekly</ToggleGroupItem>
+              <ToggleGroupItem value="custom" className={TOGGLE_ITEM}>Every N days</ToggleGroupItem>
+            </ToggleGroup>
+            {repeatMode === 'custom' ? (
+              <div className="flex items-center gap-2 pt-1">
+                <Input
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  value={customRepeat}
+                  onChange={(e) => setCustomRepeat(e.target.value)}
+                  className="w-24"
+                />
+                <span className="type-data text-xs text-muted-foreground">days apart</span>
+              </div>
+            ) : null}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="start" className="type-eyebrow text-muted-foreground">Starts on</Label>
+            <Input id="start" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="duration" className="type-eyebrow text-muted-foreground">Runs for</Label>
+            <div className="flex gap-2">
               <Input
+                id="duration"
                 type="number"
                 inputMode="numeric"
                 min={1}
-                value={customRepeat}
-                onChange={(e) => setCustomRepeat(e.target.value)}
+                value={durationValue}
+                onChange={(e) => setDurationValue(e.target.value)}
                 className="w-24"
               />
-              <span className="type-data text-xs text-muted-foreground">days apart</span>
+              <Select value={durationUnit} onValueChange={(value) => setDurationUnit(value as DurationUnit)}>
+                <SelectTrigger className="flex-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="days">days</SelectItem>
+                  <SelectItem value="weeks">weeks</SelectItem>
+                  <SelectItem value="months">months</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-          ) : null}
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="start" className="type-eyebrow text-muted-foreground">Starts on</Label>
-          <Input id="start" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="duration" className="type-eyebrow text-muted-foreground">Runs for</Label>
-          <div className="flex gap-2">
-            <Input
-              id="duration"
-              type="number"
-              inputMode="numeric"
-              min={1}
-              value={durationValue}
-              onChange={(e) => setDurationValue(e.target.value)}
-              className="w-24"
-            />
-            <Select value={durationUnit} onValueChange={(value) => setDurationUnit(value as DurationUnit)}>
-              <SelectTrigger className="flex-1">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="days">days</SelectItem>
-                <SelectItem value="weeks">weeks</SelectItem>
-                <SelectItem value="months">months</SelectItem>
-              </SelectContent>
-            </Select>
           </div>
-        </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="note" className="type-eyebrow text-muted-foreground">Note</Label>
-          <Textarea
-            id="note"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            placeholder="Anything the prescription says that the fields above do not cover"
-            rows={2}
-          />
-        </div>
+          <div className="space-y-2">
+            <Label htmlFor="note" className="type-eyebrow text-muted-foreground">Note</Label>
+            <Textarea
+              id="note"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Anything the prescription says that the fields above do not cover"
+              rows={2}
+            />
+          </div>
 
-        <div className="rounded-xl border border-dashed bg-muted/40 p-3.5">
-          <p className="type-eyebrow mb-2 text-muted-foreground">Schedule</p>
-          {preview ? (
-            <>
-              <p className="type-data text-sm font-medium uppercase tracking-[0.04em]">{preview.span}</p>
-              <p className="type-data mt-1 text-[11px] text-muted-foreground">{preview.summary}</p>
-            </>
-          ) : (
-            <p className="text-xs leading-relaxed text-muted-foreground">
-              Fill in a name, at least one slot and a duration to see the schedule.
+          <div className="rounded-xl border border-dashed bg-muted/40 p-3.5">
+            <p className="type-eyebrow mb-2 text-muted-foreground">Schedule</p>
+            {preview ? (
+              <>
+                <p className="type-data text-sm font-medium uppercase tracking-[0.04em]">{preview.span}</p>
+                <p className="type-data mt-1 text-[11px] text-muted-foreground">{preview.summary}</p>
+              </>
+            ) : (
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                Fill in a name, at least one slot and a duration to see the schedule.
+              </p>
+            )}
+          </div>
+
+          {willFork ? (
+            <p className="text-xs text-muted-foreground">
+              This changes the schedule, so it takes effect from today. Everything you already ticked keeps the old
+              schedule.
             </p>
-          )}
-        </div>
+          ) : null}
 
-        {willFork ? (
-          <p className="text-xs text-muted-foreground">
-            This changes the schedule, so it takes effect from today. Everything you already ticked keeps the old
-            schedule.
-          </p>
-        ) : null}
-
-        <div className="flex gap-2">
-          <Button className="flex-1" disabled={!valid} onClick={save}>
-            {groupId ? 'Save changes' : 'Add medicine'}
-          </Button>
-          <Button variant="outline" asChild>
-            <Link to="/medicines">Cancel</Link>
-          </Button>
+          <div className="flex gap-2">
+            <Button className="flex-1" disabled={!valid} onClick={save}>
+              {groupId ? 'Save changes' : 'Add medicine'}
+            </Button>
+            <Button variant="outline" asChild>
+              <Link to="/medicines">Cancel</Link>
+            </Button>
+          </div>
         </div>
       </div>
     </div>
