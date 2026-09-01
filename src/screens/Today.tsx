@@ -36,7 +36,7 @@ export function Today() {
 
   return (
     <div>
-      <header className="sticky top-0 z-10 border-b bg-background px-3 pb-4 pt-3">
+      <header className="app-header border-b bg-background px-3 pb-4 pt-3">
         <div className="flex items-center gap-1">
           <Button
             variant="ghost"

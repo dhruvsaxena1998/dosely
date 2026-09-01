@@ -54,7 +54,7 @@ export function MedicineHistory() {
 
   return (
     <div>
-      <header className="sticky top-0 z-10 flex items-center gap-1 border-b bg-background px-2 py-3">
+      <header className="app-header flex items-center gap-1 border-b bg-background px-2 py-3">
         <Button asChild variant="ghost" size="icon" aria-label="Back">
           <Link to="/history">
             <ChevronLeft className="size-5" />

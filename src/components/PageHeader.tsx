@@ -10,7 +10,7 @@ export function PageHeader({
   action?: ReactNode
 }) {
   return (
-    <header className="sticky top-0 z-10 border-b bg-background px-5 py-4">
+    <header className="app-header border-b bg-background px-5 py-4">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <h1 className="type-display text-2xl">{title}</h1>
