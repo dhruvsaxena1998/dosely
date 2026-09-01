@@ -8,7 +8,9 @@ import {
   doseHistory,
   groupMedicines,
   isDoseDay,
+  lastDueDate,
   nextDueDate,
+  scheduleHorizon,
 } from '@/lib/schedule'
 import type { Database, MedicineInput, MedicineRecord } from '@/types'
 
@@ -271,5 +273,41 @@ describe('the real prescription', () => {
     const names = dosesOn(db(medicines), shiftKey(start, 7), start).map((d) => d.name)
     expect(names).not.toContain('Omeprazole 20MG')
     expect(names).not.toContain('Paracetamol 500MG or Crocin')
+  })
+})
+
+describe('the horizon of what is still to come', () => {
+  const weekly: MedicineInput = {
+    name: 'Vitamin D3 60000',
+    slots: ['anytime'],
+    repeatEveryDays: 7,
+    anchorDate: '2025-09-01',
+    durationValue: 5,
+    durationUnit: 'weeks',
+  }
+
+  it('ends on the last dose day, not on the day the course window closes', () => {
+    // The window is half open to 6 Oct, but the fifth and final dose is 29 Sep.
+    const g = groupMedicines([record(weekly)])[0]
+    expect(lastDueDate(g)).toBe('2025-09-29')
+  })
+
+  it('reaches the furthest dose of any course', () => {
+    const short = record({ ...weekly, name: 'Omeprazole 20MG', repeatEveryDays: 1, durationValue: 7, durationUnit: 'days' })
+    expect(scheduleHorizon(db([record(weekly), short]), '2025-09-01')).toBe('2025-09-29')
+  })
+
+  it('ignores a deleted medicine', () => {
+    const gone = record(weekly, { deletedAt: '2025-09-02T00:00:00.000Z' })
+    expect(scheduleHorizon(db([gone]), '2025-09-02')).toBe('2025-09-02')
+  })
+
+  it('never falls behind today, so the horizon is always a date you can reach', () => {
+    const finished = record(weekly)
+    expect(scheduleHorizon(db([finished]), '2026-01-01')).toBe('2026-01-01')
+  })
+
+  it('is today when there are no medicines at all', () => {
+    expect(scheduleHorizon(db([]), '2025-09-01')).toBe('2025-09-01')
   })
 })

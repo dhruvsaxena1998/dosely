@@ -10,7 +10,7 @@ people using it each install it on their own device and their data never meets.
 ```bash
 pnpm install
 pnpm dev       # http://localhost:5173
-pnpm test      # 47 tests
+pnpm test      # 70 tests
 pnpm build
 ```
 
@@ -148,6 +148,19 @@ edit. Each one stores the full timestamp and the medicine's name at that moment.
 
 The day rolls over at 3am, so a pill swallowed at 1am counts for the night before.
 The Today screen steps back three days; anything older is locked.
+
+It also steps **forward**, because "what do I take tomorrow" is a question you ask
+the night before. A day ahead reads rather than presses: the rows lose their tick
+and skip targets, since a dose you have not taken yet is a plan and not a record,
+and the header counts *due* instead of *left*. Tapping the date opens a field that
+jumps to any day directly, for the question that is about next Tuesday rather than
+about tomorrow.
+
+Forward walking stops at the **horizon**: the last date any live course still
+schedules a dose. Past it every day is empty, and an arrow that only ever finds
+"nothing due" would promise depth the data does not have. The horizon is the last
+*dose day*, not the end of the course window — a weekly course running to 6 Oct
+stops at 29 Sep, because that is the last day it actually asks anything of you.
 
 ## Layout
 
