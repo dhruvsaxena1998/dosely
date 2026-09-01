@@ -15,6 +15,13 @@ export function DoseRow({
 }) {
   const isTaken = dose.outcome === 'taken'
   const isSkipped = dose.outcome === 'skipped'
+  const detail = dose.entry
+    ? { text: `${isSkipped ? 'Skipped' : 'Taken'} at ${formatTime(dose.entry.at)}`, className: 'type-data text-muted-foreground' }
+    : dose.outcome === 'missed'
+      ? { text: 'Missed', className: 'type-data text-missed-foreground' }
+      : dose.note
+        ? { text: dose.note, className: 'text-muted-foreground' }
+        : { text: undefined, className: undefined }
 
   return (
     <div className={cn('surface flex items-stretch rounded-xl transition-colors', OUTCOME_ROW[dose.outcome])}>
@@ -47,15 +54,12 @@ export function DoseRow({
           >
             {dose.name}
           </span>
-          {dose.entry ? (
-            <span className="type-data mt-0.5 block text-[11px] text-muted-foreground">
-              {isSkipped ? 'Skipped' : 'Taken'} at {formatTime(dose.entry.at)}
-            </span>
-          ) : dose.outcome === 'missed' ? (
-            <span className="type-data mt-0.5 block text-[11px] text-missed-foreground">Missed</span>
-          ) : dose.note ? (
-            <span className="mt-0.5 block truncate text-xs text-muted-foreground">{dose.note}</span>
-          ) : null}
+          {/* Always drawn, blank when there is nothing to say yet. Ticking a dose
+              fills this line in, and a line that only exists once it has text
+              would grow the row out from under the thumb that just pressed it. */}
+          <span className={cn('mt-0.5 block h-[15px] truncate text-[11px] leading-[15px]', detail.className)}>
+            {detail.text ?? '\u00a0'}
+          </span>
         </span>
       </button>
       <button

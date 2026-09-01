@@ -151,6 +151,27 @@
         pointer-events: none;
         background-image: var(--surface-texture);
     }
+    /* iOS builds a date field out of its own shadow tree, which carries its
+       own padding and sizes the control to the value rather than to the box
+       it was given. Left as it comes, "Starts on" is taller than every other
+       field and runs off the right edge. Strip the native chrome so it is a
+       field like the rest. */
+    input[type='date'] {
+        -webkit-appearance: none;
+        appearance: none;
+        min-width: 0;
+    }
+
+    input[type='date']::-webkit-date-and-time-value {
+        text-align: start;
+        margin: 0;
+    }
+
+    input[type='date']::-webkit-datetime-edit {
+        padding: 0;
+        line-height: inherit;
+    }
+
     :focus-visible {
         @apply outline-2 outline-offset-2 outline-ring;
     }
