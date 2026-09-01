@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Download, Upload } from 'lucide-react'
 import { Appearance } from '@/components/Appearance'
+import { AppUpdate } from '@/components/AppUpdate'
 import { PageHeader } from '@/components/PageHeader'
 import { ThemePicker } from '@/components/ThemePicker'
 import { Button } from '@/components/ui/button'
@@ -75,6 +76,15 @@ export function Settings() {
             </Button>
           </div>
           {message ? <p className="mt-2 text-xs text-muted-foreground">{message}</p> : null}
+        </section>
+
+        <section>
+          <Heading>Version</Heading>
+          <p className="mb-3 text-xs leading-relaxed text-muted-foreground">
+            The app runs from a copy saved on this device, which it swaps for a newer one in the
+            background. Press this to fetch and switch straight away.
+          </p>
+          <AppUpdate />
         </section>
       </div>
     </div>
