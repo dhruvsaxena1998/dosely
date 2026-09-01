@@ -129,6 +129,26 @@ export function lookupDose(db: Database, groupId: string, date: DateKey, slot: S
   return db.log[logKey(groupId, date, slot)]
 }
 
+/**
+ * The next date this medicine still wants something from you: scheduled, and
+ * with at least one slot not yet ticked. `nextDueDate` answers what the
+ * schedule says, which stays true whatever you do; this answers what is left of
+ * it, which is the claim a card makes when it says a dose is due.
+ *
+ * A skipped dose counts as answered. The decision has been made, and asking
+ * again tomorrow would only be nagging.
+ */
+export function nextOpenDate(db: Database, g: MedicineGroup, from: DateKey = today()): DateKey | undefined {
+  const { start, end } = groupSpan(g)
+  let cursor = maxKey(from, start)
+  while (cursor < end) {
+    const slots = scheduledSlotsOn(g, cursor)
+    if (slots.some((slot) => !lookupDose(db, g.groupId, cursor, slot))) return cursor
+    cursor = shiftKey(cursor, 1)
+  }
+  return undefined
+}
+
 export type DoseOutcome = DoseState | 'missed' | 'pending'
 
 export interface Dose {
