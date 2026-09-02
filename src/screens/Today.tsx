@@ -20,9 +20,12 @@ import {
   today,
 } from '@/lib/dates'
 import { loadExamples } from '@/lib/examples'
+import { feedback } from '@/lib/feedback'
+import type { Dose } from '@/lib/schedule'
 import { dosesOn, groupMedicines, scheduleHorizon } from '@/lib/schedule'
 import { slotLabel, sortSlots, type SlotId } from '@/lib/slots'
 import { setDose, useDatabase } from '@/lib/store'
+import type { DoseState } from '@/types'
 
 export function Today() {
   const db = useDatabase()
@@ -53,6 +56,20 @@ export function Today() {
   function goTo(next: string) {
     if (!isValidKey(next)) return
     setDate(minKey(maxKey(next, earliest), latest))
+  }
+
+  /**
+   * Answering a pocket, and saying so in the hand. The day being complete is
+   * worth a fuller answer than a single tick, and it is the one moment in the
+   * app that otherwise passes without comment — so it is read here, where every
+   * other dose on the day is already known, rather than from the store.
+   */
+  function answer(dose: Dose, state: DoseState) {
+    const clearing = dose.outcome === state
+    setDose(dose.group.groupId, date, dose.slot, clearing ? null : state)
+    if (clearing) return feedback('dose-cleared')
+    const completesTheDay = doses.every((d) => d === dose || d.entry)
+    feedback(completesTheDay ? 'day-complete' : state === 'skipped' ? 'dose-skipped' : 'dose-taken')
   }
 
   return (
@@ -154,12 +171,8 @@ export function Today() {
                     key={dose.group.groupId}
                     dose={dose}
                     planned={planned}
-                    onToggleTaken={() =>
-                      setDose(dose.group.groupId, date, slot, dose.outcome === 'taken' ? null : 'taken')
-                    }
-                    onToggleSkipped={() =>
-                      setDose(dose.group.groupId, date, slot, dose.outcome === 'skipped' ? null : 'skipped')
-                    }
+                    onToggleTaken={() => answer(dose, 'taken')}
+                    onToggleSkipped={() => answer(dose, 'skipped')}
                   />
                 ))}
               </div>

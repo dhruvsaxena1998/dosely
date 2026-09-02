@@ -105,6 +105,29 @@ used rather than up front, since carrying nine families to render the one you pi
 is not free, and the service worker caches them after that. The picker preloads on
 hover, so the switch has usually already landed by the time it is asked for.
 
+### Feedback
+
+The app is one gesture repeated five times a day, so the pocket answers back: a
+short tick on every press, and a fuller two-tap one at the moment the day's strip
+is complete. Someone who is not sure a tap landed taps again, and the second tap
+un-ticks the dose — which is the actual cost of a silent press.
+
+The platform picture is not symmetrical and the design follows the asymmetry.
+Android and Chrome have the Vibration API and are simply used. **iOS has no
+Vibration API at all**; 17.4 added a real system haptic the web can reach through
+a hidden switch-label trick, which is what `web-haptics` implements, but it needs
+System Haptics turned on and it fails completely silently — there is no way to
+find out from script. So iOS is not a platform without haptics; it is one where
+haptics might work and you cannot ask. It therefore gets a short click **as well
+as** the haptic, so that at least one of the two lands, and the Settings screen
+has three positions — off, haptic, and sound too — for anyone who finds the
+braces too loud at 3am.
+
+The preference lives beside the theme in its own localStorage key and is
+deliberately not in the exported database. Feedback is a property of a device,
+not of a prescription; a backup restored onto a tablet must not bring the phone's
+speaker with it.
+
 ## The model
 
 A **medicine** has a name, a set of **slots**, a repeat of every N days, a start
@@ -169,6 +192,7 @@ src/lib/dates.ts       date keys, the 3am rollover, half-open course ends
 src/lib/slots.ts       the seven slots and their fixed order
 src/lib/schedule.ts    versions, dose days, adherence — all pure
 src/lib/store.ts       localStorage plus the mutations, the only stateful module
+src/lib/feedback.ts    whether and how a press answers back
 src/screens/           Today, Medicines, MedicineForm, History, MedicineHistory
 ```
 
