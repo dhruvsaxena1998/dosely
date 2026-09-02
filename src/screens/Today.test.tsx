@@ -206,7 +206,7 @@ describe('filling a slot in one press', () => {
     }
   }
 
-  /** The heading's own press, which says what it will do rather than showing it. */
+  /** The heading's own press, found by the same words it prints. */
   function fill(label: string) {
     return screen.getByRole('button', { name: `Take all of ${label}` })
   }
@@ -287,6 +287,21 @@ describe('filling a slot in one press', () => {
     expect(taken('Calcium with D3')).toBe(false)
     expect(screen.getByText('0/3')).toBeTruthy()
     expect(screen.getByText('4 left')).toBeTruthy()
+  })
+
+  it('prints on the heading what a press will do', async () => {
+    const user = userEvent.setup()
+    prescription()
+    renderToday()
+
+    // A heading is the last place a thumb goes looking for a control, so the
+    // press is only worth having if it can be seen without being pressed.
+    expect(within(fill('After breakfast')).getByText('Take all')).toBeTruthy()
+
+    await user.click(fill('After breakfast'))
+
+    const clear = screen.getByRole('button', { name: 'Clear all of After breakfast' })
+    expect(within(clear).getByText('Clear all')).toBeTruthy()
   })
 
   it('renders no bulk control on a slot that is already one press', () => {

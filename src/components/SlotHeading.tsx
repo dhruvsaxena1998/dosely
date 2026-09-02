@@ -1,3 +1,4 @@
+import { Check, Undo2 } from 'lucide-react'
 import type { SlotAction } from '@/lib/schedule'
 
 /**
@@ -44,11 +45,26 @@ export function SlotHeading({
         type="button"
         onClick={bulk.onPress}
         // The row reads as a heading and a tally. What a press does is neither,
-        // so it is said outright rather than left to be inferred from a chevron.
+        // so it is said outright rather than left to be inferred.
         aria-label={bulk.action === 'fill' ? `Take all of ${label}` : `Clear all of ${label}`}
         className="flex w-full items-center gap-3 rounded-lg py-0.5 text-left transition-opacity active:opacity-60"
       >
         {row}
+        {/* Nothing else on this screen presses without looking like it does, and
+            a heading is the last place a thumb goes looking. So the press names
+            itself, in the caps the rest of the row is already set in and a shade
+            quieter than the slot it belongs to. A word rather than a glyph:
+            "fills every dose in this slot" is not something an icon can say,
+            and getting it wrong costs five records. It doubles as the state —
+            a slot offering Clear all is a slot already answered. */}
+        <span className="type-eyebrow flex shrink-0 items-center gap-1 text-muted-foreground/70">
+          {bulk.action === 'fill' ? (
+            <Check className="size-3" strokeWidth={3} />
+          ) : (
+            <Undo2 className="size-3" strokeWidth={2.5} />
+          )}
+          {bulk.action === 'fill' ? 'Take all' : 'Clear all'}
+        </span>
       </button>
     </h2>
   )
