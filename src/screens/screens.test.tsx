@@ -53,6 +53,80 @@ describe('the Medicines screen', () => {
 
     expect(screen.getByText('Archive')).toBeTruthy()
     expect(screen.getByRole('button', { name: /start again/i })).toBeTruthy()
+    // A course that ran its course was not stopped, so there is no stop to undo.
+    expect(screen.queryByRole('button', { name: /resume/i })).toBeNull()
+  })
+
+  it('offers Resume on a course stopped with days still left to run', () => {
+    const id = addMedicine({
+      name: 'Calcium with D3',
+      slots: ['after-breakfast'],
+      repeatEveryDays: 1,
+      anchorDate: shiftKey(now, -5),
+      durationValue: 30,
+      durationUnit: 'days',
+    })
+    stopMedicine(id)
+    at('/medicines', <Medicines />, '/medicines')
+
+    expect(screen.getByText('Archive')).toBeTruthy()
+    expect(screen.getByText('Stopped')).toBeTruthy()
+    expect(screen.getByRole('button', { name: /resume/i })).toBeTruthy()
+    // The two ways out of a closed course are one choice, never both offered.
+    expect(screen.queryByRole('button', { name: /start again/i })).toBeNull()
+  })
+
+  it('offers Start again rather than Resume once the span has run out', () => {
+    // Stopped a week ago, and the fortnight it was prescribed for ended two days
+    // ago. Resuming would open a version with no days in it.
+    importDatabase(
+      JSON.stringify({
+        version: 1,
+        log: {},
+        medicines: [
+          {
+            id: 'rec-1',
+            groupId: 'grp-lapsed',
+            name: 'Amoxicillin 500MG',
+            slots: ['after-breakfast'],
+            repeatEveryDays: 1,
+            anchorDate: shiftKey(now, -16),
+            effectiveFrom: shiftKey(now, -16),
+            durationValue: 14,
+            durationUnit: 'days',
+            closedOn: shiftKey(now, -7),
+            closedBy: 'stopped',
+            createdAt: '2026-01-01T00:00:00.000Z',
+          },
+        ],
+      }),
+    )
+    at('/medicines', <Medicines />, '/medicines')
+
+    expect(screen.getByRole('button', { name: /start again/i })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /resume/i })).toBeNull()
+  })
+
+  it('moves a resumed course out of the archive and back into Running', async () => {
+    const user = userEvent.setup()
+    const id = addMedicine({
+      name: 'Calcium with D3',
+      slots: ['after-breakfast'],
+      repeatEveryDays: 1,
+      anchorDate: shiftKey(now, -5),
+      durationValue: 30,
+      durationUnit: 'days',
+    })
+    stopMedicine(id)
+    at('/medicines', <Medicines />, '/medicines')
+
+    // No dialog: a resume is additive, and stopping again is one press away.
+    await user.click(screen.getByRole('button', { name: /resume/i }))
+
+    expect(screen.getByText('Running')).toBeTruthy()
+    expect(screen.queryByText('Archive')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Stop' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /resume/i })).toBeNull()
   })
 
   it('soft deletes behind a confirmation and offers a restore', async () => {

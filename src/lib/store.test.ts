@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { shiftKey, today } from '@/lib/dates'
-import { courseStatus, groupMedicines, isDeleted, logKey, scheduledSlotsOn } from '@/lib/schedule'
+import { courseEndFrom, shiftKey, today } from '@/lib/dates'
+import { adherenceFor, courseEnd, courseStatus, groupMedicines, groupSpan, isDeleted, logKey, scheduledSlotsOn } from '@/lib/schedule'
 import {
   addMedicine,
   deleteMedicine,
@@ -8,6 +8,7 @@ import {
   importDatabase,
   restartMedicine,
   restoreMedicine,
+  resumeMedicine,
   setDose,
   setDoses,
   stopMedicine,
@@ -146,6 +147,132 @@ describe('stopping, deleting and restarting', () => {
     expect(restarted).not.toBe(id)
     expect(groupMedicines(getDatabase().medicines)).toHaveLength(2)
     expect(records(restarted!)[0].anchorDate).toBe(now)
+  })
+})
+
+describe('resuming a stopped course', () => {
+  /**
+   * A course stopped days ago and left alone since. `stopMedicine` always stops
+   * as of today, so a stop with any distance behind it — which is the only shape
+   * that has a pause in it to get wrong — has to be written out rather than
+   * pressed into being.
+   */
+  function stoppedDaysAgo(over: Partial<MedicineInput> = {}, stopped = -5, started = -10) {
+    const id = 'grp-paused'
+    const input = { ...calcium, ...over, anchorDate: shiftKey(now, started) }
+    importDatabase(
+      JSON.stringify({
+        version: 1,
+        log: {},
+        medicines: [
+          {
+            ...input,
+            id: 'rec-1',
+            groupId: id,
+            effectiveFrom: input.anchorDate,
+            closedOn: shiftKey(now, stopped),
+            closedBy: 'stopped',
+            createdAt: '2026-01-01T00:00:00.000Z',
+          },
+        ],
+      }),
+    )
+    return { id, input }
+  }
+
+  it('schedules nothing across the pause, and doses again after it', () => {
+    const { id } = stoppedDaysAgo()
+    resumeMedicine(id)
+
+    expect(scheduledSlotsOn(group(id), shiftKey(now, -8))).toEqual(['after-breakfast'])
+    // The days between the stop and the resume are owned by no version at all.
+    expect(scheduledSlotsOn(group(id), shiftKey(now, -3))).toEqual([])
+    expect(scheduledSlotsOn(group(id), now)).toEqual(['after-breakfast'])
+  })
+
+  it('moves the course back into running', () => {
+    const { id } = stoppedDaysAgo()
+    expect(courseStatus(group(id), now)).toBe('stopped')
+
+    resumeMedicine(id)
+    expect(courseStatus(group(id), now)).toBe('active')
+  })
+
+  it('ends the course when it was always going to end', () => {
+    const { id, input } = stoppedDaysAgo()
+    const end = courseEndFrom(input.anchorDate, input.durationValue, input.durationUnit)
+
+    resumeMedicine(id)
+
+    expect(courseEnd(group(id).current)).toBe(end)
+    expect(groupSpan(group(id)).end).toBe(end)
+  })
+
+  it('holds the original weekday when a weekly course is resumed midweek', () => {
+    const { id, input } = stoppedDaysAgo(
+      { repeatEveryDays: 7, durationValue: 8, durationUnit: 'weeks' },
+      -10,
+      -21,
+    )
+    resumeMedicine(id)
+
+    // Four weeks after the anchor is a week from now, which the resumed version
+    // covers. It lands on the anchor's weekday, not on the day of the resume.
+    expect(scheduledSlotsOn(group(id), shiftKey(input.anchorDate, 28))).toEqual(['after-breakfast'])
+    expect(scheduledSlotsOn(group(id), shiftKey(input.anchorDate, 29))).toEqual([])
+  })
+
+  it('leaves the pause out of the tally rather than counting it as missed', () => {
+    const { id } = stoppedDaysAgo()
+    resumeMedicine(id)
+
+    // Five days before the stop, twenty from the resume to the original end,
+    // and the five days of the pause in neither.
+    const tally = adherenceFor(getDatabase(), group(id), now)
+    expect(tally.total).toBe(25)
+    expect(tally.missed).toBe(5)
+    expect(tally.pending).toBe(20)
+  })
+
+  it('keeps every tick recorded before the stop', () => {
+    const { id } = stoppedDaysAgo()
+    const before = shiftKey(now, -8)
+    setDose(id, before, 'after-breakfast', 'taken')
+
+    resumeMedicine(id)
+
+    expect(getDatabase().log[logKey(id, before, 'after-breakfast')].state).toBe('taken')
+  })
+
+  it("brings today's doses back when the stop is undone the same day", () => {
+    const id = addMedicine(calcium)
+    stopMedicine(id)
+    expect(scheduledSlotsOn(group(id), now)).toEqual([])
+
+    resumeMedicine(id)
+    expect(scheduledSlotsOn(group(id), now)).toEqual(['after-breakfast'])
+  })
+
+  it('can be stopped again afterwards', () => {
+    const id = addMedicine(calcium)
+    stopMedicine(id)
+    resumeMedicine(id)
+    stopMedicine(id)
+
+    expect(courseStatus(group(id), now)).toBe('stopped')
+    expect(scheduledSlotsOn(group(id), now)).toEqual([])
+    expect(scheduledSlotsOn(group(id), shiftKey(now, -1))).toEqual(['after-breakfast'])
+  })
+
+  it('refuses a course whose original span has already run out', () => {
+    // Stopped ten days ago, and the seventeen days it was prescribed for ran out
+    // three days ago. There is nothing left to resume into.
+    const { id } = stoppedDaysAgo({ durationValue: 17 }, -10, -20)
+
+    resumeMedicine(id)
+
+    expect(records(id)).toHaveLength(1)
+    expect(scheduledSlotsOn(group(id), now)).toEqual([])
   })
 })
 
