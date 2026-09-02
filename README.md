@@ -10,7 +10,7 @@ people using it each install it on their own device and their data never meets.
 ```bash
 pnpm install
 pnpm dev       # http://localhost:5173
-pnpm test      # 70 tests
+pnpm test      # 145 tests
 pnpm build
 ```
 
@@ -104,6 +104,24 @@ look right is not offline. A theme fetches its own families the first time it is
 used rather than up front, since carrying nine families to render the one you picked
 is not free, and the service worker caches them after that. The picker preloads on
 hover, so the switch has usually already landed by the time it is asked for.
+
+### One press for a whole slot
+
+Four things after breakfast is one act, so it is one press. The slot heading —
+already sitting above the rows with the done-of-total tally — is the control:
+pressing it takes everything in that slot still unanswered, and pressing a full
+slot again clears it back to pending.
+
+It never overwrites a decision you already made. A dose you deliberately skipped
+is stepped over when filling and never taken away when clearing, which leaves a
+slot holding a skip with no symmetric clear to offer — so it keeps offering the
+fill, by then a no-op, rather than a clear that would quietly drop the skip. A
+slot of one renders no control at all, because that row is already one press, and
+neither does a day you are reading ahead to.
+
+The fill is **one write and one answer back**: a single trip through localStorage
+with every entry sharing the timestamp, and a single tick in the hand — or the
+day-complete celebration, once, if that press finished the strip.
 
 ### Feedback
 

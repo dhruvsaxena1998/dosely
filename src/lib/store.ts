@@ -199,25 +199,46 @@ export function restartMedicine(groupId: string, startDate: DateKey): string | u
   })
 }
 
+/** One dose's answer: a state to record, or null to take the entry away again. */
+export interface DoseChange {
+  groupId: string
+  slot: SlotId
+  state: DoseState | null
+}
+
+/**
+ * The name to stamp an entry with: the one the version owning that date carries,
+ * so a dose ticked on a past day is logged under what it was called then. Falls
+ * back to the current version for a date no version owns, which is a dose being
+ * answered outside its own course.
+ */
+function nameOn(groupId: string, date: DateKey): string {
+  const record = db.medicines.find((m) => {
+    if (m.groupId !== groupId) return false
+    const w = recordWindow(m)
+    return date >= w.from && date < w.to
+  })
+  return record?.name ?? currentRecord(groupId)?.name ?? 'Unknown'
+}
+
 export function setDose(groupId: string, date: DateKey, slot: SlotId, state: DoseState | null) {
-  const key = logKey(groupId, date, slot)
+  setDoses(date, [{ groupId, slot, state }])
+}
+
+/**
+ * Every answer a single press produced, on one day, in one write. Four doses
+ * filled from a slot heading are one trip through localStorage and one nudge to
+ * the listeners, not four of each — and they share the timestamp, because they
+ * are one act rather than four that happened to land in the same millisecond.
+ */
+export function setDoses(date: DateKey, changes: readonly DoseChange[]) {
+  if (changes.length === 0) return
   const log = { ...db.log }
-  if (state === null) {
-    delete log[key]
-  } else {
-    const record = db.medicines.find((m) => {
-      if (m.groupId !== groupId) return false
-      const w = recordWindow(m)
-      return date >= w.from && date < w.to
-    })
-    log[key] = {
-      groupId,
-      date,
-      slot,
-      state,
-      at: new Date().toISOString(),
-      name: record?.name ?? currentRecord(groupId)?.name ?? 'Unknown',
-    }
+  const at = new Date().toISOString()
+  for (const { groupId, slot, state } of changes) {
+    const key = logKey(groupId, date, slot)
+    if (state === null) delete log[key]
+    else log[key] = { groupId, date, slot, state, at, name: nameOn(groupId, date) }
   }
   commit({ ...db, log })
 }

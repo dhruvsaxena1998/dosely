@@ -151,6 +151,72 @@ describe('answering a press on the Today screen', () => {
     expect(stub.trigger).toHaveBeenCalledWith('selection')
   })
 
+  it('answers a slot filled in one press once, not once per dose', async () => {
+    const user = userEvent.setup()
+    daily('Metformin 500MG')
+    daily('Vitamin D3')
+    daily('Calcium with D3')
+    // A dose left open elsewhere, so the fill is a tick rather than the day.
+    addMedicine({
+      name: 'Omeprazole 20MG',
+      slots: ['after-dinner'],
+      repeatEveryDays: 1,
+      anchorDate: now,
+      durationValue: 7,
+      durationUnit: 'days',
+    })
+    renderToday()
+
+    await user.click(screen.getByRole('button', { name: 'Take all of After breakfast' }))
+
+    expect(stub.trigger).toHaveBeenCalledTimes(1)
+    expect(stub.trigger).toHaveBeenCalledWith('selection')
+  })
+
+  it('celebrates once when the press completed the day', async () => {
+    const user = userEvent.setup()
+    daily('Metformin 500MG')
+    daily('Vitamin D3')
+    daily('Calcium with D3')
+    renderToday()
+
+    await user.click(screen.getByRole('button', { name: 'Take all of After breakfast' }))
+
+    expect(stub.trigger).toHaveBeenCalledTimes(1)
+    expect(stub.trigger).toHaveBeenCalledWith('success')
+  })
+
+  it('answers a slot cleared in one press once', async () => {
+    const user = userEvent.setup()
+    daily('Metformin 500MG')
+    daily('Vitamin D3')
+    renderToday()
+
+    await user.click(screen.getByRole('button', { name: 'Take all of After breakfast' }))
+    stub.trigger.mockClear()
+    await user.click(screen.getByRole('button', { name: 'Clear all of After breakfast' }))
+
+    expect(stub.trigger).toHaveBeenCalledTimes(1)
+    expect(stub.trigger).toHaveBeenCalledWith('selection')
+  })
+
+  it('says nothing when the press had nothing left to record', async () => {
+    const user = userEvent.setup()
+    daily('Metformin 500MG')
+    daily('Vitamin D3')
+    renderToday()
+
+    // A skip keeps the fill on offer after the slot is full, and a press that
+    // writes nothing must not confirm a tick it did not take.
+    await user.click(screen.getByRole('button', { name: 'Skip Vitamin D3' }))
+    await user.click(screen.getByRole('button', { name: 'Take all of After breakfast' }))
+    stub.trigger.mockClear()
+
+    await user.click(screen.getByRole('button', { name: 'Take all of After breakfast' }))
+
+    expect(stub.trigger).not.toHaveBeenCalled()
+  })
+
   it('has nothing to answer on a day that has not arrived', async () => {
     const user = userEvent.setup()
     daily('Metformin 500MG', shiftKey(now, -1), 5)
