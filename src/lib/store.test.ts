@@ -1,12 +1,13 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { shiftKey, today } from '@/lib/dates'
-import { groupMedicines, logKey, scheduledSlotsOn } from '@/lib/schedule'
+import { courseStatus, groupMedicines, isDeleted, logKey, scheduledSlotsOn } from '@/lib/schedule'
 import {
   addMedicine,
   deleteMedicine,
   getDatabase,
   importDatabase,
   restartMedicine,
+  restoreMedicine,
   setDose,
   stopMedicine,
   updateMedicine,
@@ -26,6 +27,10 @@ const calcium: MedicineInput = {
 
 function records(groupId: string) {
   return getDatabase().medicines.filter((m) => m.groupId === groupId)
+}
+
+function group(groupId: string) {
+  return groupMedicines(records(groupId))[0]
 }
 
 beforeEach(() => {
@@ -140,6 +145,80 @@ describe('stopping, deleting and restarting', () => {
     expect(restarted).not.toBe(id)
     expect(groupMedicines(getDatabase().medicines)).toHaveLength(2)
     expect(records(restarted!)[0].anchorDate).toBe(now)
+  })
+})
+
+describe('a fork inheriting the group lifecycle', () => {
+  it('keeps a stopped course stopped when its schedule is edited', () => {
+    const id = addMedicine(calcium)
+    stopMedicine(id)
+    updateMedicine(id, { ...calcium, slots: ['after-dinner'] })
+
+    expect(courseStatus(group(id), now)).toBe('stopped')
+  })
+
+  it('keeps a deleted medicine deleted when its schedule is edited', () => {
+    const id = addMedicine(calcium)
+    deleteMedicine(id)
+    updateMedicine(id, { ...calcium, slots: ['after-dinner'] })
+
+    expect(isDeleted(group(id))).toBe(true)
+  })
+
+  it('leaves a running course running, and still forks it', () => {
+    const id = addMedicine(calcium)
+    updateMedicine(id, { ...calcium, slots: ['after-dinner'] })
+
+    expect(records(id)).toHaveLength(2)
+    expect(courseStatus(group(id), now)).toBe('active')
+  })
+
+  it('schedules nothing across a break the user asked for', () => {
+    // A course stopped days ago, in the shape a database written before the two
+    // closures were named apart would hold it: a date and nothing else.
+    const id = 'grp-stopped'
+    importDatabase(
+      JSON.stringify({
+        version: 1,
+        log: {},
+        medicines: [
+          {
+            ...calcium,
+            id: 'rec-1',
+            groupId: id,
+            anchorDate: shiftKey(now, -10),
+            effectiveFrom: shiftKey(now, -10),
+            closedOn: shiftKey(now, -5),
+            createdAt: '2026-01-01T00:00:00.000Z',
+          },
+        ],
+      }),
+    )
+    updateMedicine(id, { ...calcium, anchorDate: shiftKey(now, -10), slots: ['after-dinner'] })
+
+    expect(courseStatus(group(id), now)).toBe('stopped')
+    expect(scheduledSlotsOn(group(id), shiftKey(now, -3))).toEqual([])
+    expect(scheduledSlotsOn(group(id), now)).toEqual([])
+  })
+
+  it('still rewrites the name across a stopped course without forking', () => {
+    const id = addMedicine(calcium)
+    stopMedicine(id)
+    updateMedicine(id, { ...calcium, name: 'Calcium with D3 500' })
+
+    expect(records(id)).toHaveLength(1)
+    expect(records(id)[0].name).toBe('Calcium with D3 500')
+    expect(courseStatus(group(id), now)).toBe('stopped')
+  })
+
+  it('restores a medicine that was edited while deleted', () => {
+    const id = addMedicine(calcium)
+    deleteMedicine(id)
+    updateMedicine(id, { ...calcium, slots: ['after-dinner'] })
+    restoreMedicine(id)
+
+    expect(isDeleted(group(id))).toBe(false)
+    expect(courseStatus(group(id), now)).toBe('active')
   })
 })
 

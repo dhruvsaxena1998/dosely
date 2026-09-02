@@ -9,8 +9,8 @@ import { MedicineHistory } from '@/screens/MedicineHistory'
 import { Medicines } from '@/screens/Medicines'
 import { shiftKey, today } from '@/lib/dates'
 import { loadExamples } from '@/lib/examples'
-import { groupMedicines } from '@/lib/schedule'
-import { addMedicine, getDatabase, importDatabase, setDose } from '@/lib/store'
+import { courseStatus, groupMedicines } from '@/lib/schedule'
+import { addMedicine, getDatabase, importDatabase, setDose, stopMedicine } from '@/lib/store'
 
 const now = today()
 
@@ -102,6 +102,27 @@ describe('the medicine form', () => {
     await user.click(screen.getByRole('button', { name: 'After dinner' }))
 
     expect(screen.getByText('14 doses across 7 days')).toBeTruthy()
+  })
+
+  it('leaves a stopped course in the archive after a schedule change', async () => {
+    const user = userEvent.setup()
+    const id = addMedicine({
+      name: 'Calcium with D3',
+      slots: ['after-breakfast'],
+      repeatEveryDays: 1,
+      anchorDate: shiftKey(now, -5),
+      durationValue: 30,
+      durationUnit: 'days',
+    })
+    stopMedicine(id)
+    // The card hides Edit on a stopped course, but the route answers for any
+    // group id, so a bookmarked link gets here anyway.
+    at(`/medicines/${id}/edit`, <MedicineForm />, '/medicines/:groupId/edit')
+
+    await user.click(screen.getByRole('button', { name: 'After dinner' }))
+    await user.click(screen.getByRole('button', { name: /save changes/i }))
+
+    expect(courseStatus(groupMedicines(getDatabase().medicines)[0], now)).toBe('stopped')
   })
 
   it('warns that a schedule change only applies from today', async () => {
