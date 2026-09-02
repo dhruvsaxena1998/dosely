@@ -234,16 +234,14 @@ export function MedicineForm() {
 
               <div className="space-y-2">
                 <Label className="type-eyebrow text-muted-foreground">Slots</Label>
-                {/* They wrap rather than share a track, because the narrowest
-                    phone cannot fit three of these in a row. */}
-                <div className="flex flex-wrap gap-2">
+                <div className="grid grid-cols-3 gap-2">
                   {SLOT_PRESETS.map((preset) => (
                     <Button
                       key={preset.label}
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="h-8 px-2 text-[11px]"
+                      className="h-8 min-w-0 px-1.5 text-[11px]"
                       onClick={() => setSlots([...preset.slots])}
                     >
                       {preset.label}
@@ -264,6 +262,14 @@ export function MedicineForm() {
                       className={cn('justify-start px-3 text-[13px]', TOGGLE_ITEM, slot.id === 'anytime' && 'col-span-2')}
                     >
                       {slot.label}
+                      {/* Anytime is the one slot whose name does not say how
+                          many doses it is, and it is the one people read as
+                          "whenever, as often as you like". */}
+                      {slot.id === 'anytime' ? (
+                        <span className="ml-auto text-[11px] font-normal text-muted-foreground">
+                          {repeatEveryDays === 1 ? 'once a day' : 'once a dose day'}
+                        </span>
+                      ) : null}
                     </ToggleGroupItem>
                   ))}
                 </ToggleGroup>

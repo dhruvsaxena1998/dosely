@@ -83,7 +83,7 @@ describe('the medicine form', () => {
     at('/medicines/new', <MedicineForm />, '/medicines/new')
 
     await user.type(screen.getByLabelText('Name'), 'Vitamin B12')
-    await user.click(screen.getByRole('button', { name: 'Anytime' }))
+    await user.click(screen.getByRole('button', { name: /^Anytime/ }))
     await user.click(screen.getByRole('radio', { name: 'Weekly' }))
     const duration = screen.getByLabelText('Runs for')
     await user.clear(duration)
@@ -142,7 +142,7 @@ describe('the medicine form', () => {
     await user.type(screen.getByLabelText('Name'), 'Vitamin D3 60000')
     expect(screen.getByText('Needs at least one slot.')).toBeTruthy()
 
-    await user.click(screen.getByRole('button', { name: 'Anytime' }))
+    await user.click(screen.getByRole('button', { name: /^Anytime/ }))
     expect(screen.queryByText(/^Needs /)).toBeNull()
   })
 
