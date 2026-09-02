@@ -6,7 +6,6 @@ import {
   deleteMedicine,
   getDatabase,
   importDatabase,
-  restartMedicine,
   restoreMedicine,
   resumeMedicine,
   setDose,
@@ -139,15 +138,6 @@ describe('stopping, deleting and restarting', () => {
     expect(Object.keys(getDatabase().log)).toHaveLength(1)
   })
 
-  it('restarts into a separate group so the old history stays sealed', () => {
-    const id = addMedicine(calcium)
-    const restarted = restartMedicine(id, now)
-
-    expect(restarted).toBeTruthy()
-    expect(restarted).not.toBe(id)
-    expect(groupMedicines(getDatabase().medicines)).toHaveLength(2)
-    expect(records(restarted!)[0].anchorDate).toBe(now)
-  })
 })
 
 describe('resuming a stopped course', () => {

@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState, type FormEvent } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ChevronLeft, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -56,25 +56,38 @@ function sentenceList(parts: string[]): string {
 
 export function MedicineForm() {
   const { groupId } = useParams()
+  const [search] = useSearchParams()
   const navigate = useNavigate()
   const db = useDatabase()
   const now = useToday()
   const nameRef = useRef<HTMLInputElement>(null)
 
-  const existing = useMemo(() => {
-    if (!groupId) return undefined
-    return groupMedicines(db.medicines).find((g) => g.groupId === groupId)?.current
-  }, [db, groupId])
+  /** The finished course Start again is repeating, when that is how we got here. */
+  const from = search.get('from') ?? undefined
 
-  const [name, setName] = useState(existing?.name ?? '')
-  const [note, setNote] = useState(existing?.note ?? '')
-  const [noteOpen, setNoteOpen] = useState(Boolean(existing?.note))
-  const [slots, setSlots] = useState<SlotId[]>(existing?.slots ?? [])
-  const [repeatMode, setRepeatMode] = useState<RepeatMode>(repeatModeOf(existing?.repeatEveryDays ?? 1))
-  const [customRepeat, setCustomRepeat] = useState(String(existing?.repeatEveryDays ?? 2))
-  const [startDate, setStartDate] = useState(existing?.anchorDate ?? now)
-  const [durationValue, setDurationValue] = useState(String(existing?.durationValue ?? 7))
-  const [durationUnit, setDurationUnit] = useState<DurationUnit>(existing?.durationUnit ?? 'days')
+  /**
+   * Two different questions the form asks of the database, and conflating them
+   * is what would turn Start again into an edit. `editing` is the course being
+   * changed, and only an edit has one. `source` is the version the fields open
+   * on, which a repeat prescription has without being an edit of anything.
+   */
+  const { editing, source } = useMemo(() => {
+    const find = (id: string) => groupMedicines(db.medicines).find((g) => g.groupId === id)?.current
+    const editing = groupId ? find(groupId) : undefined
+    return { editing, source: editing ?? (from ? find(from) : undefined) }
+  }, [db, groupId, from])
+
+  const [name, setName] = useState(source?.name ?? '')
+  const [note, setNote] = useState(source?.note ?? '')
+  const [noteOpen, setNoteOpen] = useState(Boolean(source?.note))
+  const [slots, setSlots] = useState<SlotId[]>(source?.slots ?? [])
+  const [repeatMode, setRepeatMode] = useState<RepeatMode>(repeatModeOf(source?.repeatEveryDays ?? 1))
+  const [customRepeat, setCustomRepeat] = useState(String(source?.repeatEveryDays ?? 2))
+  // The one field a repeat prescription must not inherit. It starts the day the
+  // pharmacy hands it over, not the day the original course began.
+  const [startDate, setStartDate] = useState(editing?.anchorDate ?? now)
+  const [durationValue, setDurationValue] = useState(String(source?.durationValue ?? 7))
+  const [durationUnit, setDurationUnit] = useState<DurationUnit>(source?.durationUnit ?? 'days')
   const [added, setAdded] = useState<string>()
 
   const repeatEveryDays =
@@ -119,9 +132,15 @@ export function MedicineForm() {
     const key = name.trim().toLowerCase()
     if (key.length === 0) return undefined
     return groupMedicines(db.medicines).find(
-      (g) => g.groupId !== groupId && !g.current.deletedAt && g.current.name.trim().toLowerCase() === key,
+      (g) =>
+        g.groupId !== groupId &&
+        // The course you pressed Start again on shares this name by definition,
+        // so saying so would be noise on the one path that expects it.
+        g.groupId !== from &&
+        !g.current.deletedAt &&
+        g.current.name.trim().toLowerCase() === key,
     )?.current.name
-  }, [db, groupId, name])
+  }, [db, groupId, from, name])
 
   /** A start date that is not today has consequences, so it says what they are. */
   const startNote = useMemo(() => {
@@ -137,14 +156,14 @@ export function MedicineForm() {
   }, [now, startDate])
 
   const willFork = Boolean(
-    existing &&
-      existing.effectiveFrom < now &&
-      (existing.repeatEveryDays !== repeatEveryDays ||
-        existing.anchorDate !== startDate ||
-        existing.durationValue !== duration ||
-        existing.durationUnit !== durationUnit ||
-        existing.slots.length !== slots.length ||
-        existing.slots.some((s) => !slots.includes(s))),
+    editing &&
+      editing.effectiveFrom < now &&
+      (editing.repeatEveryDays !== repeatEveryDays ||
+        editing.anchorDate !== startDate ||
+        editing.durationValue !== duration ||
+        editing.durationUnit !== durationUnit ||
+        editing.slots.length !== slots.length ||
+        editing.slots.some((s) => !slots.includes(s))),
   )
 
   function save(andAnother = false) {
@@ -218,7 +237,7 @@ export function MedicineForm() {
                   }}
                   placeholder="Paracetamol 500MG or Crocin"
                   autoComplete="off"
-                  autoFocus={!groupId}
+                  autoFocus={!groupId && !from}
                   spellCheck={false}
                 />
                 {twin ? (

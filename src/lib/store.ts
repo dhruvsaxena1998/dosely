@@ -224,21 +224,6 @@ export function resumeMedicine(groupId: string) {
   commit({ ...db, medicines: [...db.medicines, record] })
 }
 
-/** Same medicine, fresh course, new group so the old history stays sealed. */
-export function restartMedicine(groupId: string, startDate: DateKey): string | undefined {
-  const current = currentRecord(groupId)
-  if (!current) return undefined
-  return addMedicine({
-    name: current.name,
-    note: current.note,
-    slots: current.slots,
-    repeatEveryDays: current.repeatEveryDays,
-    anchorDate: startDate,
-    durationValue: current.durationValue,
-    durationUnit: current.durationUnit,
-  })
-}
-
 /** One dose's answer: a state to record, or null to take the entry away again. */
 export interface DoseChange {
   groupId: string
