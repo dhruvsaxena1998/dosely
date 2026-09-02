@@ -2,7 +2,7 @@ import type { DateKey } from '@/lib/dates'
 import { courseEndFrom, daysBetween, maxKey, minKey, shiftKey, today } from '@/lib/dates'
 import type { SlotId } from '@/lib/slots'
 import { sortSlots } from '@/lib/slots'
-import type { DoseLogEntry, DoseState, Database, MedicineRecord } from '@/types'
+import type { Closure, DoseLogEntry, DoseState, Database, MedicineRecord } from '@/types'
 
 /** All versions of one medicine, oldest first. */
 export interface MedicineGroup {
@@ -47,6 +47,20 @@ export function groupMedicines(medicines: readonly MedicineRecord[]): MedicineGr
 
 export function isDeleted(g: MedicineGroup): boolean {
   return Boolean(g.current.deletedAt)
+}
+
+/**
+ * Why a version is closed, and undefined when it is not.
+ *
+ * Records written before the two closures were named apart carry only a date.
+ * The distinction is reconstructed from the shape the group has always had:
+ * superseding a version is what puts another one after it, so a closed version
+ * with a later version was superseded, and a closed version that is the group's
+ * last was the user stopping the course.
+ */
+export function closureOf(g: MedicineGroup, m: MedicineRecord): Closure | undefined {
+  if (!m.closedOn) return undefined
+  return m.closedBy ?? (m.id === g.current.id ? 'stopped' : 'superseded')
 }
 
 /** `[start, end)` across every version of the medicine. */
@@ -117,8 +131,14 @@ export function courseStatus(g: MedicineGroup, ref: DateKey = today()): CourseSt
   const { start, end } = groupSpan(g)
   if (ref < start) return 'upcoming'
   if (ref < end) return 'active'
+  // Past its end, so it either ran out or was ended early. Which of those it was
+  // is a fact the record states rather than something inferred from the date —
+  // an edit closes a version too, and that must never read as a stop.
   const closed = g.current.closedOn
-  return closed && closed < courseEnd(g.current) ? 'stopped' : 'finished'
+  if (!closed || closureOf(g, g.current) !== 'stopped') return 'finished'
+  // A stop landing on or after the day the course was going to end anyway cut
+  // nothing short. Abandoned and completed stay worth telling apart.
+  return closed < courseEnd(g.current) ? 'stopped' : 'finished'
 }
 
 export function logKey(groupId: string, date: DateKey, slot: SlotId): string {

@@ -239,8 +239,33 @@ describe('course status', () => {
   })
 
   it('is stopped when closed before the course end', () => {
+    const stopped = record(base, { closedOn: '2025-09-10', closedBy: 'stopped' })
+    expect(courseStatus(groupMedicines([stopped])[0], '2025-09-12')).toBe('stopped')
+  })
+
+  it('is finished when the stop landed on the day it was going to end anyway', () => {
+    const stopped = record(base, { closedOn: '2025-09-22', closedBy: 'stopped' })
+    expect(courseStatus(groupMedicines([stopped])[0], '2025-09-23')).toBe('finished')
+  })
+
+  it('never reports a superseded version as the state of the course', () => {
+    const groupId = 'grp-forked'
+    const first = record(base, { groupId, closedOn: '2025-09-10', closedBy: 'superseded' })
+    const second = record({ ...base, slots: ['after-breakfast'] }, { groupId, effectiveFrom: '2025-09-10' })
+    expect(courseStatus(groupMedicines([first, second])[0], '2025-09-12')).toBe('active')
+  })
+
+  it('reads a database written before the two closures were named apart', () => {
+    // Only a date, no reason. The reason is reconstructed from the shape: the
+    // group's last version can only have been closed by a stop, because
+    // superseding a version is what puts another one after it.
     const stopped = record(base, { closedOn: '2025-09-10' })
     expect(courseStatus(groupMedicines([stopped])[0], '2025-09-12')).toBe('stopped')
+
+    const groupId = 'grp-legacy-fork'
+    const first = record(base, { groupId, closedOn: '2025-09-10' })
+    const second = record({ ...base, slots: ['after-breakfast'] }, { groupId, effectiveFrom: '2025-09-10' })
+    expect(courseStatus(groupMedicines([first, second])[0], '2025-09-12')).toBe('active')
   })
 })
 

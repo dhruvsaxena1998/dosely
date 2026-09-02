@@ -2,7 +2,7 @@ import { useSyncExternalStore } from 'react'
 import type { DateKey } from '@/lib/dates'
 import { maxKey, today } from '@/lib/dates'
 import type { SlotId } from '@/lib/slots'
-import { logKey, recordWindow } from '@/lib/schedule'
+import { closureOf, groupMedicines, logKey, recordWindow } from '@/lib/schedule'
 import type { Database, DoseState, MedicineInput, MedicineRecord } from '@/types'
 
 const STORAGE_KEY = 'dosely.db.v1'
@@ -123,17 +123,33 @@ export function updateMedicine(groupId: string, input: MedicineInput) {
   }
 
   const forkFrom = maxKey(now, input.anchorDate)
+  // The lifecycle belongs to the medicine, not to one version of it, and
+  // everything that asks reads it off the current version. A fork carrying none
+  // would hand the group a blank one — which is how editing a stopped course
+  // used to restart it, and editing a deleted one used to bring it back.
+  const closure = closureOf(groupMedicines(recordsOf(groupId))[0], current)
+  const stoppedOn = closure === 'stopped' ? current.closedOn : undefined
   const next: MedicineRecord = {
     ...input,
     id: newId(),
     groupId,
     effectiveFrom: forkFrom,
+    closedOn: stoppedOn,
+    closedBy: stoppedOn ? 'stopped' : undefined,
+    deletedAt: current.deletedAt,
     createdAt: new Date().toISOString(),
   }
   commit({
     ...db,
     medicines: [
-      ...renamed.map((m) => (m.id === current.id ? { ...m, closedOn: forkFrom } : m)),
+      // A version that is already closed keeps the date and the reason it closed
+      // on. Restamping a stop as a supersede would drag its window forward and
+      // schedule doses through a break the user asked for.
+      ...renamed.map((m) =>
+        m.id === current.id && !m.closedOn
+          ? { ...m, closedOn: forkFrom, closedBy: 'superseded' as const }
+          : m,
+      ),
       next,
     ],
   })
@@ -145,7 +161,9 @@ export function stopMedicine(groupId: string) {
   const now = today()
   commit({
     ...db,
-    medicines: db.medicines.map((m) => (m.id === current.id ? { ...m, closedOn: now } : m)),
+    medicines: db.medicines.map((m) =>
+      m.id === current.id ? { ...m, closedOn: now, closedBy: 'stopped' as const } : m,
+    ),
   })
 }
 
