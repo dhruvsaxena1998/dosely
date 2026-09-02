@@ -19,13 +19,14 @@ export function DoseRow({
 }) {
   const isTaken = dose.outcome === 'taken'
   const isSkipped = dose.outcome === 'skipped'
+  /** The second line, or nothing to say yet. */
   const detail = dose.entry
     ? { text: `${isSkipped ? 'Skipped' : 'Taken'} at ${formatTime(dose.entry.at)}`, className: 'type-data text-muted-foreground' }
     : dose.outcome === 'missed'
       ? { text: 'Missed', className: 'type-data text-missed-foreground' }
       : dose.note
         ? { text: dose.note, className: 'text-muted-foreground' }
-        : { text: undefined, className: undefined }
+        : undefined
 
   const body = (
     <>
@@ -42,27 +43,33 @@ export function DoseRow({
           <Check className="size-4" strokeWidth={3} />
         )}
       </span>
-      <span className="min-w-0">
-        {/* The line box is the pocket's own height, so the name and the pocket
-            centre on each other whatever the type is doing. Centring the pocket
-            against the whole text block instead would hang it half a line below
-            the name on the rows that have nothing to say yet — which is most of
-            them, most of the day. */}
+      {/* Two lines tall whether or not there is a second line to draw: 24px for
+          the name's line box and 15px for the detail's. Ticking a dose fills
+          that line in, and a block that grew with it would resize the row under
+          the thumb that just pressed it.
+
+          Holding the height here rather than drawing a blank line into it
+          leaves what can actually be seen free to sit in the middle of it. A
+          name on its own centres against the pocket beside it; a name with a
+          detail under it centres the pair, which is how any other two-line row
+          with something in the margin is set. Reserving the line as content
+          instead put the pocket half a line below the name on every row with
+          nothing to say — which is most of them, most of the day. */}
+      <span className="flex h-[39px] min-w-0 flex-col justify-center">
         <span
           className={cn(
-            'block truncate text-[15px] font-medium leading-7 tracking-[-0.005em]',
+            'block truncate text-[15px] font-medium leading-6 tracking-[-0.005em]',
             isSkipped && 'text-muted-foreground',
             dose.outcome === 'missed' && 'text-muted-foreground',
           )}
         >
           {dose.name}
         </span>
-        {/* Always drawn, blank when there is nothing to say yet. Ticking a dose
-            fills this line in, and a line that only exists once it has text
-            would grow the row out from under the thumb that just pressed it. */}
-        <span className={cn('block h-[15px] truncate text-[11px] leading-[15px]', detail.className)}>
-          {detail.text ?? '\u00a0'}
-        </span>
+        {detail ? (
+          <span className={cn('block h-[15px] truncate text-[11px] leading-[15px]', detail.className)}>
+            {detail.text}
+          </span>
+        ) : null}
       </span>
     </>
   )
@@ -70,7 +77,7 @@ export function DoseRow({
   if (planned) {
     return (
       <div className={cn('surface flex items-stretch rounded-xl', OUTCOME_ROW[dose.outcome])}>
-        <div className="flex min-w-0 flex-1 items-start gap-3 px-3 py-3">{body}</div>
+        <div className="flex min-w-0 flex-1 items-center gap-3 px-3 py-3.5">{body}</div>
       </div>
     )
   }
@@ -82,7 +89,7 @@ export function DoseRow({
         onClick={onToggleTaken}
         aria-pressed={isTaken}
         aria-label={dose.name}
-        className="group flex min-w-0 flex-1 items-start gap-3 rounded-l-xl px-3 py-3 text-left"
+        className="group flex min-w-0 flex-1 items-center gap-3 rounded-l-xl px-3 py-3.5 text-left"
       >
         {body}
       </button>
