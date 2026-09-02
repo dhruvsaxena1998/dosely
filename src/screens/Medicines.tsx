@@ -15,7 +15,7 @@ import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/EmptyState'
 import { MetaLine } from '@/components/MetaLine'
 import { PageHeader } from '@/components/PageHeader'
-import { relativeDayLabel, today } from '@/lib/dates'
+import { relativeDayLabel, useToday } from '@/lib/dates'
 import { describeDuration, describeGroupSpan, describeRepeat } from '@/lib/describe'
 import { loadExamples } from '@/lib/examples'
 import type { MedicineGroup } from '@/lib/schedule'
@@ -35,7 +35,7 @@ type Confirm = { kind: 'stop'; group: MedicineGroup } | { kind: 'delete'; group:
 
 export function Medicines() {
   const db = useDatabase()
-  const now = today()
+  const now = useToday()
   const [confirm, setConfirm] = useState<Confirm>(null)
 
   const { active, upcoming, archived } = useMemo(() => {

@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import type { DurationUnit } from '@/lib/dates'
-import { courseEndFrom, daysBetween, isValidKey, today } from '@/lib/dates'
+import { courseEndFrom, daysBetween, isValidKey, useToday } from '@/lib/dates'
 import { describeDuration, describeSpan } from '@/lib/describe'
 import { doseHistory, groupMedicines } from '@/lib/schedule'
 import { SLOTS, type SlotId } from '@/lib/slots'
@@ -58,7 +58,7 @@ export function MedicineForm() {
   const { groupId } = useParams()
   const navigate = useNavigate()
   const db = useDatabase()
-  const now = today()
+  const now = useToday()
   const nameRef = useRef<HTMLInputElement>(null)
 
   const existing = useMemo(() => {

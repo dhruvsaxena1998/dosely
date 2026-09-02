@@ -17,7 +17,7 @@ import {
   minKey,
   relativeDayLabel,
   shiftKey,
-  today,
+  useToday,
 } from '@/lib/dates'
 import { loadExamples } from '@/lib/examples'
 import { dosesOn, groupMedicines, scheduleHorizon } from '@/lib/schedule'
@@ -26,9 +26,26 @@ import { setDose, useDatabase } from '@/lib/store'
 
 export function Today() {
   const db = useDatabase()
-  const now = today()
+  const now = useToday()
   const [date, setDate] = useState(now)
   const [picking, setPicking] = useState(false)
+  /** The day it was, last time this screen rendered. */
+  const [wasNow, setWasNow] = useState(now)
+
+  const earliest = shiftKey(now, -BACKFILL_DAYS)
+  // Walking forward stops where the last course runs out. Past that every day is
+  // empty, and an arrow that only ever finds "nothing due" is a lie about depth.
+  const latest = useMemo(() => scheduleHorizon(db, now), [db, now])
+
+  // The day can turn over under a window that has been sitting open all night.
+  // Follow it if the screen was on today, so the next dose is ticked onto the
+  // day it was actually swallowed. Stay put if the user walked somewhere — the
+  // screen does not move while it is being read — and only pull them back if
+  // the day they were on has just locked.
+  if (wasNow !== now) {
+    setWasNow(now)
+    setDate(date === wasNow ? now : minKey(maxKey(date, earliest), latest))
+  }
 
   const doses = useMemo(() => dosesOn(db, date, now), [db, date, now])
   const hasMedicines = groupMedicines(db.medicines).length > 0
@@ -44,10 +61,6 @@ export function Today() {
   }, [doses])
 
   const left = doses.filter((d) => !d.entry).length
-  const earliest = shiftKey(now, -BACKFILL_DAYS)
-  // Walking forward stops where the last course runs out. Past that every day is
-  // empty, and an arrow that only ever finds "nothing due" is a lie about depth.
-  const latest = useMemo(() => scheduleHorizon(db, now), [db, now])
   const planned = date > now
 
   function goTo(next: string) {
