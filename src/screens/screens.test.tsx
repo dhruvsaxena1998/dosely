@@ -120,6 +120,57 @@ describe('the medicine form', () => {
     await user.click(screen.getByRole('button', { name: 'After dinner' }))
     expect(screen.getByText(/takes effect from today/i)).toBeTruthy()
   })
+
+  it('fills the usual slots for a twice-a-day prescription in one press', async () => {
+    const user = userEvent.setup()
+    at('/medicines/new', <MedicineForm />, '/medicines/new')
+
+    await user.type(screen.getByLabelText('Name'), 'Paracetamol 500MG or Crocin')
+    await user.click(screen.getByRole('button', { name: 'Twice a day' }))
+
+    expect(screen.getByRole('button', { name: 'After breakfast' }).getAttribute('data-state')).toBe('on')
+    expect(screen.getByRole('button', { name: 'After dinner' }).getAttribute('data-state')).toBe('on')
+    expect(screen.getByText('14 doses across 7 days')).toBeTruthy()
+  })
+
+  it('names what is still missing instead of only disabling the button', async () => {
+    const user = userEvent.setup()
+    at('/medicines/new', <MedicineForm />, '/medicines/new')
+
+    expect(screen.getByText('Needs a name and at least one slot.')).toBeTruthy()
+
+    await user.type(screen.getByLabelText('Name'), 'Vitamin D3 60000')
+    expect(screen.getByText('Needs at least one slot.')).toBeTruthy()
+
+    await user.click(screen.getByRole('button', { name: 'Anytime' }))
+    expect(screen.queryByText(/^Needs /)).toBeNull()
+  })
+
+  it('keeps the schedule when adding the next medicine of the same prescription', async () => {
+    const user = userEvent.setup()
+    at('/medicines/new', <MedicineForm />, '/medicines/new')
+
+    await user.type(screen.getByLabelText('Name'), 'Omeprazole 20MG')
+    await user.click(screen.getByRole('button', { name: 'Before breakfast' }))
+    await user.click(screen.getByRole('radio', { name: '1 month' }))
+    await user.click(screen.getByRole('button', { name: 'Save and add another' }))
+
+    expect(screen.getByText(/Added Omeprazole 20MG/)).toBeTruthy()
+    expect((screen.getByLabelText('Name') as HTMLInputElement).value).toBe('')
+    expect(screen.getByRole('button', { name: 'Before breakfast' }).getAttribute('data-state')).toBe('off')
+
+    // The second medicine of a prescription only needs a name and its slots.
+    await user.type(screen.getByLabelText('Name'), 'Cetirizine 10MG')
+    await user.click(screen.getByRole('button', { name: 'After dinner' }))
+    await user.click(screen.getByRole('button', { name: 'Add medicine' }))
+
+    const groups = groupMedicines(getDatabase().medicines)
+    expect(groups.map((g) => g.current.name)).toEqual(['Cetirizine 10MG', 'Omeprazole 20MG'])
+    for (const g of groups) {
+      expect(g.current.durationValue).toBe(1)
+      expect(g.current.durationUnit).toBe('months')
+    }
+  })
 })
 
 describe('the History screens', () => {
