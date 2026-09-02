@@ -4,14 +4,14 @@ import { ChevronRight, History as HistoryIcon } from 'lucide-react'
 import { AdherenceBar } from '@/components/AdherenceBar'
 import { EmptyState } from '@/components/EmptyState'
 import { PageHeader } from '@/components/PageHeader'
-import { today } from '@/lib/dates'
+import { useToday } from '@/lib/dates'
 import { describeGroupSpan } from '@/lib/describe'
 import { adherenceFor, courseStatus, groupMedicines } from '@/lib/schedule'
 import { useDatabase } from '@/lib/store'
 
 export function History() {
   const db = useDatabase()
-  const now = today()
+  const now = useToday()
 
   const rows = useMemo(() => {
     return groupMedicines(db.medicines)

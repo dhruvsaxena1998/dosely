@@ -4,7 +4,7 @@ import { ChevronLeft } from 'lucide-react'
 import { AdherenceBar } from '@/components/AdherenceBar'
 import { MetaLine } from '@/components/MetaLine'
 import { Button } from '@/components/ui/button'
-import { formatDay, formatTime, nearDayLabel, today } from '@/lib/dates'
+import { formatDay, formatTime, nearDayLabel, useToday } from '@/lib/dates'
 import { describeDuration, describeGroupSpan, describeRepeat } from '@/lib/describe'
 import { OUTCOME_CHIP, OUTCOME_LABEL } from '@/lib/outcome'
 import type { DoseOutcome } from '@/lib/schedule'
@@ -16,7 +16,7 @@ import { cn } from '@/lib/utils'
 export function MedicineHistory() {
   const { groupId } = useParams()
   const db = useDatabase()
-  const now = today()
+  const now = useToday()
 
   const group = useMemo(
     () => groupMedicines(db.medicines).find((g) => g.groupId === groupId),
