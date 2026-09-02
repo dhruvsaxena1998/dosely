@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Download, Upload } from 'lucide-react'
 import { Appearance } from '@/components/Appearance'
 import { AppUpdate } from '@/components/AppUpdate'
+import { Changelog } from '@/components/Changelog'
 import { Feedback } from '@/components/Feedback'
 import { PageHeader } from '@/components/PageHeader'
 import { ThemePicker } from '@/components/ThemePicker'
@@ -95,6 +96,7 @@ export function Settings() {
             background. Press this to fetch and switch straight away.
           </p>
           <AppUpdate />
+          <Changelog />
         </section>
       </div>
     </div>
