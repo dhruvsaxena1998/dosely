@@ -24,6 +24,11 @@ function at(path: string, element: React.ReactNode, pattern: string) {
   )
 }
 
+/** The Archive is folded until asked for, so anything in it takes a press first. */
+async function openArchive(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole('button', { name: /^Archive/ }))
+}
+
 beforeEach(() => {
   importDatabase(JSON.stringify({ version: 1, medicines: [], log: {} }))
 })
@@ -40,7 +45,8 @@ describe('the Medicines screen', () => {
     expect(within(card).getAllByText('Anytime').length).toBeGreaterThan(0)
   })
 
-  it('files a finished course under the archive with a restart button', () => {
+  it('files a finished course under the archive with a restart button', async () => {
+    const user = userEvent.setup()
     addMedicine({
       name: 'Omeprazole 20MG',
       slots: ['before-breakfast'],
@@ -50,6 +56,7 @@ describe('the Medicines screen', () => {
       durationUnit: 'days',
     })
     at('/medicines', <Medicines />, '/medicines')
+    await openArchive(user)
 
     expect(screen.getByText('Archive')).toBeTruthy()
     expect(screen.getByRole('button', { name: /start again/i })).toBeTruthy()
@@ -57,7 +64,8 @@ describe('the Medicines screen', () => {
     expect(screen.queryByRole('button', { name: /resume/i })).toBeNull()
   })
 
-  it('offers Resume on a course stopped with days still left to run', () => {
+  it('offers Resume on a course stopped with days still left to run', async () => {
+    const user = userEvent.setup()
     const id = addMedicine({
       name: 'Calcium with D3',
       slots: ['after-breakfast'],
@@ -68,6 +76,7 @@ describe('the Medicines screen', () => {
     })
     stopMedicine(id)
     at('/medicines', <Medicines />, '/medicines')
+    await openArchive(user)
 
     expect(screen.getByText('Archive')).toBeTruthy()
     expect(screen.getByText('Stopped')).toBeTruthy()
@@ -76,7 +85,8 @@ describe('the Medicines screen', () => {
     expect(screen.queryByRole('button', { name: /start again/i })).toBeNull()
   })
 
-  it('offers Start again rather than Resume once the span has run out', () => {
+  it('offers Start again rather than Resume once the span has run out', async () => {
+    const user = userEvent.setup()
     // Stopped a week ago, and the fortnight it was prescribed for ended two days
     // ago. Resuming would open a version with no days in it.
     importDatabase(
@@ -102,6 +112,7 @@ describe('the Medicines screen', () => {
       }),
     )
     at('/medicines', <Medicines />, '/medicines')
+    await openArchive(user)
 
     expect(screen.getByRole('button', { name: /start again/i })).toBeTruthy()
     expect(screen.queryByRole('button', { name: /resume/i })).toBeNull()
@@ -119,6 +130,7 @@ describe('the Medicines screen', () => {
     })
     stopMedicine(id)
     at('/medicines', <Medicines />, '/medicines')
+    await openArchive(user)
 
     // No dialog: a resume is additive, and stopping again is one press away.
     await user.click(screen.getByRole('button', { name: /resume/i }))
@@ -127,6 +139,143 @@ describe('the Medicines screen', () => {
     expect(screen.queryByText('Archive')).toBeNull()
     expect(screen.getByRole('button', { name: 'Stop' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: /resume/i })).toBeNull()
+  })
+
+  it('folds the Archive to a line with a count, and opens it on a press', async () => {
+    const user = userEvent.setup()
+    const id = addMedicine({
+      name: 'Amoxicillin 500MG',
+      slots: ['after-breakfast'],
+      repeatEveryDays: 1,
+      anchorDate: shiftKey(now, -5),
+      durationValue: 30,
+      durationUnit: 'days',
+    })
+    stopMedicine(id)
+    at('/medicines', <Medicines />, '/medicines')
+
+    // Shut, the count is the only thing saying there is anything in there.
+    const fold = screen.getByRole('button', { name: /^Archive/ })
+    expect(fold.getAttribute('aria-expanded')).toBe('false')
+    expect(within(fold).getByText('1')).toBeTruthy()
+    expect(screen.queryByText('Amoxicillin 500MG')).toBeNull()
+
+    await user.click(fold)
+    expect(screen.getByText('Amoxicillin 500MG')).toBeTruthy()
+    expect(screen.getByRole('button', { name: /^Archive/ }).getAttribute('aria-expanded')).toBe('true')
+  })
+
+  it('does not fold the sections that cannot grow without bound', () => {
+    loadExamples()
+    at('/medicines', <Medicines />, '/medicines')
+
+    expect(screen.getByText('Running')).toBeTruthy()
+    expect(screen.getByText('Not started')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /^Running/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: /^Not started/ })).toBeNull()
+  })
+
+  it('filters every section by name, whatever the case it is typed in', async () => {
+    const user = userEvent.setup()
+    loadExamples()
+    at('/medicines', <Medicines />, '/medicines')
+
+    await user.type(screen.getByLabelText('Find a medicine'), 'vitamin')
+
+    // A plain substring, so Multivitamin is a hit on the same footing as the
+    // three medicines whose names begin with it.
+    expect(screen.getByText('Multivitamin')).toBeTruthy()
+    expect(screen.getByText('Vitamin B12')).toBeTruthy()
+    expect(screen.queryByText('Omeprazole 20MG')).toBeNull()
+    // A match still says which section it is in: Vitamin C starts in three days.
+    expect(screen.getByText('Running')).toBeTruthy()
+    expect(screen.getByText('Not started')).toBeTruthy()
+
+    await user.clear(screen.getByLabelText('Find a medicine'))
+    await user.type(screen.getByLabelText('Find a medicine'), 'OMEPRAZOLE')
+    expect(screen.getByText('Omeprazole 20MG')).toBeTruthy()
+    expect(screen.queryByText('Multivitamin')).toBeNull()
+    // A section with no match draws nothing at all, heading included.
+    expect(screen.queryByText('Not started')).toBeNull()
+  })
+
+  it('reveals a match inside the folded Archive, then hands the fold back', async () => {
+    const user = userEvent.setup()
+    loadExamples()
+    stopMedicine(groupMedicines(getDatabase().medicines).find((g) => g.current.name === 'Calcium with D3')!.groupId)
+    at('/medicines', <Medicines />, '/medicines')
+
+    expect(screen.queryByText('Calcium with D3')).toBeNull()
+
+    // A fold must never be able to swallow the thing being looked for.
+    await user.type(screen.getByLabelText('Find a medicine'), 'calcium')
+    expect(screen.getByText('Calcium with D3')).toBeTruthy()
+
+    // Cleared, the section goes back to shut — which is where it was left, not
+    // where the search put it.
+    await user.clear(screen.getByLabelText('Find a medicine'))
+    expect(screen.queryByText('Calcium with D3')).toBeNull()
+    expect(screen.getByRole('button', { name: /^Archive/ }).getAttribute('aria-expanded')).toBe('false')
+  })
+
+  it('leaves the Archive open after a search when that is how it was left', async () => {
+    const user = userEvent.setup()
+    loadExamples()
+    stopMedicine(groupMedicines(getDatabase().medicines).find((g) => g.current.name === 'Calcium with D3')!.groupId)
+    at('/medicines', <Medicines />, '/medicines')
+
+    await openArchive(user)
+    await user.type(screen.getByLabelText('Find a medicine'), 'vitamin')
+    await user.clear(screen.getByLabelText('Find a medicine'))
+
+    expect(screen.getByText('Calcium with D3')).toBeTruthy()
+  })
+
+  it('says when nothing matches, and offers the way back', async () => {
+    const user = userEvent.setup()
+    loadExamples()
+    at('/medicines', <Medicines />, '/medicines')
+
+    await user.type(screen.getByLabelText('Find a medicine'), 'ibuprofen')
+
+    expect(screen.getByText('Nothing found')).toBeTruthy()
+    expect(screen.queryByText('Running')).toBeNull()
+
+    await user.click(screen.getByRole('button', { name: /clear the search/i }))
+    expect(screen.getByText('Multivitamin')).toBeTruthy()
+  })
+
+  it('keeps the search field away until there are enough medicines to need it', () => {
+    addMedicine({
+      name: 'Amoxicillin 500MG',
+      slots: ['after-breakfast'],
+      repeatEveryDays: 1,
+      anchorDate: now,
+      durationValue: 7,
+      durationUnit: 'days',
+    })
+    const one = at('/medicines', <Medicines />, '/medicines')
+    expect(screen.queryByLabelText('Find a medicine')).toBeNull()
+    one.unmount()
+
+    loadExamples()
+    at('/medicines', <Medicines />, '/medicines')
+    expect(screen.getByLabelText('Find a medicine')).toBeTruthy()
+  })
+
+  it('forgets the search when the screen goes away', async () => {
+    const user = userEvent.setup()
+    loadExamples()
+    const first = at('/medicines', <Medicines />, '/medicines')
+
+    await user.type(screen.getByLabelText('Find a medicine'), 'vitamin')
+    expect(screen.queryByText('Omeprazole 20MG')).toBeNull()
+    first.unmount()
+
+    // A lens, not a setting: nothing about it outlives the screen.
+    at('/medicines', <Medicines />, '/medicines')
+    expect((screen.getByLabelText('Find a medicine') as HTMLInputElement).value).toBe('')
+    expect(screen.getByText('Omeprazole 20MG')).toBeTruthy()
   })
 
   it('soft deletes behind a confirmation and offers a restore', async () => {
@@ -144,6 +293,8 @@ describe('the Medicines screen', () => {
 
     await user.click(screen.getByRole('button', { name: /delete/i }))
     await user.click(screen.getByRole('button', { name: /^Delete$/ }))
+    // Deleting files the card in the Archive, which is shut.
+    await openArchive(user)
 
     expect(screen.getByText('Deleted')).toBeTruthy()
     expect(screen.getByRole('button', { name: /restore/i })).toBeTruthy()
