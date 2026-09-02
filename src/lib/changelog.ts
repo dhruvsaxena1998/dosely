@@ -24,6 +24,7 @@ export const CHANGELOG: Release[] = [
       'Enter a prescription of several medicines without retyping the schedule for each one.',
       'Left open past 3am, the app now moves on to the new day by itself.',
       'Editing a stopped or deleted medicine no longer quietly restarts it.',
+      'A medicine in the archive can be deleted for good, its history with it.',
     ],
   },
   {
