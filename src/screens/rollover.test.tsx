@@ -87,7 +87,8 @@ function header() {
 }
 
 function section(title: string) {
-  return screen.getByRole('heading', { name: title }).closest('section')!
+  // A prefix, because the Archive's heading carries its count as well.
+  return screen.getByRole('heading', { name: new RegExp(`^${title}`) }).closest('section')!
 }
 
 beforeEach(() => {
@@ -206,6 +207,10 @@ describe('the day rolling over under the other screens', () => {
 
     timePasses(6)
 
+    // The Archive is folded, and says in its count that something arrived.
+    const archive = section('Archive')
+    expect(within(archive).getByText('1')).toBeTruthy()
+    fireEvent.click(within(archive).getByRole('button'))
     expect(within(section('Archive')).getByText('Amoxicillin 500MG')).toBeTruthy()
   })
 
