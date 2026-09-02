@@ -12,7 +12,10 @@ import {
   nextDueDate,
   nextOpenDate,
   scheduleHorizon,
+  slotAction,
+  slotTargets,
 } from '@/lib/schedule'
+import type { DoseOutcome } from '@/lib/schedule'
 import type { Database, MedicineInput, MedicineRecord } from '@/types'
 
 let seq = 0
@@ -395,5 +398,66 @@ describe('a dose already ticked is no longer due', () => {
 
   it('does not reach back for a dose missed before today', () => {
     expect(nextOpenDate(db([m]), group, '2025-09-02')).toBe('2025-09-02')
+  })
+})
+
+describe('what a press on a whole slot does', () => {
+  const morning: MedicineInput = {
+    name: 'Metformin 500MG',
+    slots: ['after-breakfast'],
+    repeatEveryDays: 1,
+    anchorDate: '2025-09-01',
+    durationValue: 7,
+    durationUnit: 'days',
+  }
+
+  /** A slot's worth of doses, one per outcome given. */
+  function slot(...outcomes: DoseOutcome[]) {
+    const records = outcomes.map((_, i) => record({ ...morning, name: `Medicine ${i}` }))
+    const log: Database['log'] = {}
+    for (const [i, outcome] of outcomes.entries()) {
+      if (outcome !== 'taken' && outcome !== 'skipped') continue
+      log[`${records[i].groupId}|2025-09-01|after-breakfast`] = {
+        groupId: records[i].groupId,
+        date: '2025-09-01',
+        slot: 'after-breakfast',
+        state: outcome,
+        at: '2025-09-01T09:00:00.000Z',
+        name: `Medicine ${i}`,
+      }
+    }
+    return dosesOn(db(records, log), '2025-09-01', '2025-09-01')
+  }
+
+  it('offers nothing on a slot that is already one press', () => {
+    expect(slotAction(slot('pending'))).toBeUndefined()
+    expect(slotAction(slot('taken'))).toBeUndefined()
+  })
+
+  it('fills a slot with anything left open, and clears one that is full', () => {
+    expect(slotAction(slot('pending', 'pending'))).toBe('fill')
+    expect(slotAction(slot('taken', 'pending'))).toBe('fill')
+    expect(slotAction(slot('taken', 'taken'))).toBe('clear')
+  })
+
+  it('keeps offering the fill once the slot holds a skip', () => {
+    expect(slotAction(slot('skipped', 'pending'))).toBe('fill')
+    expect(slotAction(slot('skipped', 'taken'))).toBe('fill')
+  })
+
+  it('writes only what a press is entitled to write', () => {
+    const partly = slot('taken', 'skipped', 'pending')
+    expect(slotTargets(partly, 'fill').map((d) => d.name)).toEqual(['Medicine 2'])
+
+    const full = slot('taken', 'taken')
+    expect(slotTargets(full, 'clear')).toHaveLength(2)
+    expect(slotTargets(slot('taken', 'skipped'), 'clear').map((d) => d.name)).toEqual(['Medicine 0'])
+  })
+
+  it('fills a past day\u2019s missed doses rather than treating them as answered', () => {
+    const records = [record(morning)]
+    const doses = dosesOn(db(records), '2025-09-01', '2025-09-02')
+    expect(doses[0].outcome).toBe('missed')
+    expect(slotTargets(doses, 'fill')).toHaveLength(1)
   })
 })

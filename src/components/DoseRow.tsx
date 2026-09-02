@@ -43,9 +43,14 @@ export function DoseRow({
         )}
       </span>
       <span className="min-w-0">
+        {/* The line box is the pocket's own height, so the name and the pocket
+            centre on each other whatever the type is doing. Centring the pocket
+            against the whole text block instead would hang it half a line below
+            the name on the rows that have nothing to say yet — which is most of
+            them, most of the day. */}
         <span
           className={cn(
-            'block truncate text-[15px] font-medium tracking-[-0.005em]',
+            'block truncate text-[15px] font-medium leading-7 tracking-[-0.005em]',
             isSkipped && 'text-muted-foreground',
             dose.outcome === 'missed' && 'text-muted-foreground',
           )}
@@ -55,7 +60,7 @@ export function DoseRow({
         {/* Always drawn, blank when there is nothing to say yet. Ticking a dose
             fills this line in, and a line that only exists once it has text
             would grow the row out from under the thumb that just pressed it. */}
-        <span className={cn('mt-0.5 block h-[15px] truncate text-[11px] leading-[15px]', detail.className)}>
+        <span className={cn('block h-[15px] truncate text-[11px] leading-[15px]', detail.className)}>
           {detail.text ?? '\u00a0'}
         </span>
       </span>
@@ -65,7 +70,7 @@ export function DoseRow({
   if (planned) {
     return (
       <div className={cn('surface flex items-stretch rounded-xl', OUTCOME_ROW[dose.outcome])}>
-        <div className="flex min-w-0 flex-1 items-center gap-3 px-3 py-3.5">{body}</div>
+        <div className="flex min-w-0 flex-1 items-start gap-3 px-3 py-3">{body}</div>
       </div>
     )
   }
@@ -77,7 +82,7 @@ export function DoseRow({
         onClick={onToggleTaken}
         aria-pressed={isTaken}
         aria-label={dose.name}
-        className="group flex min-w-0 flex-1 items-center gap-3 rounded-l-xl px-3 py-3.5 text-left"
+        className="group flex min-w-0 flex-1 items-start gap-3 rounded-l-xl px-3 py-3 text-left"
       >
         {body}
       </button>

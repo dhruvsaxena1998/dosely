@@ -21,10 +21,10 @@ import {
 } from '@/lib/dates'
 import { loadExamples } from '@/lib/examples'
 import { feedback } from '@/lib/feedback'
-import type { Dose } from '@/lib/schedule'
-import { dosesOn, groupMedicines, scheduleHorizon } from '@/lib/schedule'
+import type { Dose, SlotAction } from '@/lib/schedule'
+import { dosesOn, groupMedicines, scheduleHorizon, slotAction, slotTargets } from '@/lib/schedule'
 import { slotLabel, sortSlots, type SlotId } from '@/lib/slots'
-import { setDose, useDatabase } from '@/lib/store'
+import { setDose, setDoses, useDatabase } from '@/lib/store'
 import type { DoseState } from '@/types'
 
 export function Today() {
@@ -81,8 +81,38 @@ export function Today() {
     const clearing = dose.outcome === state
     setDose(dose.group.groupId, date, dose.slot, clearing ? null : state)
     if (clearing) return feedback('dose-cleared')
-    const completesTheDay = doses.every((d) => d === dose || d.entry)
-    feedback(completesTheDay ? 'day-complete' : state === 'skipped' ? 'dose-skipped' : 'dose-taken')
+    feedback(completedBy([dose]) ? 'day-complete' : state === 'skipped' ? 'dose-skipped' : 'dose-taken')
+  }
+
+  /**
+   * Answering a whole slot. Four things after breakfast is one act, so it is one
+   * write, one render and one answer back — a fill that finishes the strip
+   * celebrates the day rather than ticking once per dose and then celebrating.
+   *
+   * What it writes is never simply the slot: filling steps over a dose already
+   * answered, and clearing takes back only what it could have put there.
+   */
+  function answerSlot(slotDoses: Dose[], action: SlotAction) {
+    const targets = slotTargets(slotDoses, action)
+    // Pressing fill on a slot with nothing left unanswered, which is what the
+    // control still offers once a slot holds a skip. Nothing was recorded, so
+    // there is nothing to confirm.
+    if (targets.length === 0) return
+    setDoses(
+      date,
+      targets.map((d) => ({
+        groupId: d.group.groupId,
+        slot: d.slot,
+        state: action === 'fill' ? ('taken' as const) : null,
+      })),
+    )
+    if (action === 'clear') return feedback('dose-cleared')
+    feedback(completedBy(targets) ? 'day-complete' : 'dose-taken')
+  }
+
+  /** Whether answering these doses leaves nothing else open on the day. */
+  function completedBy(answered: Dose[]): boolean {
+    return doses.every((d) => d.entry || answered.includes(d))
   }
 
   return (
@@ -171,26 +201,34 @@ export function Today() {
         />
       ) : (
         <div className="space-y-7 px-4 py-6">
-          {bySlot.map(({ slot, doses: slotDoses }) => (
-            <section key={slot}>
-              <SlotHeading
-                label={slotLabel(slot)}
-                done={slotDoses.filter((d) => d.entry).length}
-                total={slotDoses.length}
-              />
-              <div className="space-y-2">
-                {slotDoses.map((dose) => (
-                  <DoseRow
-                    key={dose.group.groupId}
-                    dose={dose}
-                    planned={planned}
-                    onToggleTaken={() => answer(dose, 'taken')}
-                    onToggleSkipped={() => answer(dose, 'skipped')}
-                  />
-                ))}
-              </div>
-            </section>
-          ))}
+          {bySlot.map(({ slot, doses: slotDoses }) => {
+            // Only where a tick is on offer anyway. A day being read ahead to
+            // has nothing to record yet, and a day older than the backfill
+            // window cannot be reached from this screen at all, so the rows and
+            // the heading lock together by neither of them being drawn.
+            const action = planned ? undefined : slotAction(slotDoses)
+            return (
+              <section key={slot}>
+                <SlotHeading
+                  label={slotLabel(slot)}
+                  done={slotDoses.filter((d) => d.entry).length}
+                  total={slotDoses.length}
+                  bulk={action ? { action, onPress: () => answerSlot(slotDoses, action) } : undefined}
+                />
+                <div className="space-y-2">
+                  {slotDoses.map((dose) => (
+                    <DoseRow
+                      key={dose.group.groupId}
+                      dose={dose}
+                      planned={planned}
+                      onToggleTaken={() => answer(dose, 'taken')}
+                      onToggleSkipped={() => answer(dose, 'skipped')}
+                    />
+                  ))}
+                </div>
+              </section>
+            )
+          })}
           {planned ? (
             <p className="type-data px-1 text-center text-[11px] text-muted-foreground">
               Planned. You can tick it on the day.

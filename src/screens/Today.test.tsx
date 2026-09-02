@@ -185,3 +185,149 @@ describe('the Today screen', () => {
     expect(screen.getByText('Nothing due')).toBeTruthy()
   })
 })
+
+describe('filling a slot in one press', () => {
+  /** Three after breakfast, one before it — a slot to fill and a slot that is already one press. */
+  function prescription(start = today()) {
+    for (const [name, slot] of [
+      ['Metformin 500MG', 'after-breakfast'],
+      ['Calcium with D3', 'after-breakfast'],
+      ['Vitamin D3 60000', 'after-breakfast'],
+      ['Omeprazole 20MG', 'before-breakfast'],
+    ] as const) {
+      addMedicine({
+        name,
+        slots: [slot],
+        repeatEveryDays: 1,
+        anchorDate: start,
+        durationValue: 7,
+        durationUnit: 'days',
+      })
+    }
+  }
+
+  /** The heading's own press, which says what it will do rather than showing it. */
+  function fill(label: string) {
+    return screen.getByRole('button', { name: `Take all of ${label}` })
+  }
+
+  function taken(name: string) {
+    return row(name).getAttribute('aria-pressed') === 'true'
+  }
+
+  it('takes everything left in the slot, and nothing outside it', async () => {
+    const user = userEvent.setup()
+    prescription()
+    renderToday()
+
+    await user.click(fill('After breakfast'))
+
+    expect(taken('Metformin 500MG')).toBe(true)
+    expect(taken('Calcium with D3')).toBe(true)
+    expect(taken('Vitamin D3 60000')).toBe(true)
+    expect(taken('Omeprazole 20MG')).toBe(false)
+    expect(screen.getByText('3/3')).toBeTruthy()
+    expect(screen.getByText('1 left')).toBeTruthy()
+  })
+
+  it('completes a partly ticked slot without disturbing the tick already there', async () => {
+    const user = userEvent.setup()
+    prescription()
+    renderToday()
+
+    await user.click(row('Calcium with D3'))
+    const first = Object.values(getDatabase().log)[0]
+
+    await user.click(fill('After breakfast'))
+
+    expect(getDatabase().log[`${first.groupId}|${first.date}|${first.slot}`]).toEqual(first)
+    expect(screen.getByText('3/3')).toBeTruthy()
+  })
+
+  it('steps over a skip, and offers no clear that would leave it behind', async () => {
+    const user = userEvent.setup()
+    prescription()
+    renderToday()
+
+    await user.click(screen.getByRole('button', { name: 'Skip Vitamin D3 60000' }))
+    await user.click(fill('After breakfast'))
+
+    expect(within(row('Vitamin D3 60000')).getByText(/^Skipped at /)).toBeTruthy()
+    expect(taken('Calcium with D3')).toBe(true)
+    expect(screen.getByText('3/3')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Clear all of After breakfast' })).toBeNull()
+    expect(fill('After breakfast')).toBeTruthy()
+  })
+
+  it('presses twice to the same place it pressed once', async () => {
+    const user = userEvent.setup()
+    prescription()
+    renderToday()
+
+    // A slot holding a skip keeps offering the fill, which is the only way to
+    // press fill twice — without one, the second press is the clear.
+    await user.click(screen.getByRole('button', { name: 'Skip Vitamin D3 60000' }))
+    await user.click(fill('After breakfast'))
+    const afterOnePress = JSON.stringify(getDatabase().log)
+
+    await user.click(fill('After breakfast'))
+
+    expect(JSON.stringify(getDatabase().log)).toBe(afterOnePress)
+  })
+
+  it('clears the slot back to pending on the next press', async () => {
+    const user = userEvent.setup()
+    prescription()
+    renderToday()
+
+    await user.click(fill('After breakfast'))
+    await user.click(screen.getByRole('button', { name: 'Clear all of After breakfast' }))
+
+    expect(taken('Metformin 500MG')).toBe(false)
+    expect(taken('Calcium with D3')).toBe(false)
+    expect(screen.getByText('0/3')).toBeTruthy()
+    expect(screen.getByText('4 left')).toBeTruthy()
+  })
+
+  it('renders no bulk control on a slot that is already one press', () => {
+    prescription()
+    renderToday()
+
+    expect(screen.getByText('Before breakfast')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /all of Before breakfast/ })).toBeNull()
+  })
+
+  it('renders no bulk control on a day that has not arrived', async () => {
+    const user = userEvent.setup()
+    prescription()
+    renderToday()
+
+    await user.click(screen.getByRole('button', { name: /next day/i }))
+
+    expect(screen.getByText('After breakfast')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /all of After breakfast/ })).toBeNull()
+  })
+
+  it('fills the day strip for every dose in the slot', async () => {
+    const user = userEvent.setup()
+    prescription()
+    const { container } = renderToday()
+    const strip = () => container.querySelector('header')!.querySelectorAll('.bg-taken')
+
+    expect(strip()).toHaveLength(0)
+    await user.click(fill('After breakfast'))
+    expect(strip()).toHaveLength(3)
+  })
+
+  it('fills a past day inside the backfill window', async () => {
+    const user = userEvent.setup()
+    prescription(shiftKey(today(), -1))
+    renderToday()
+
+    await user.click(screen.getByRole('button', { name: /previous day/i }))
+    await user.click(fill('After breakfast'))
+
+    expect(taken('Metformin 500MG')).toBe(true)
+    expect(screen.getByText('3/3')).toBeTruthy()
+  })
+})

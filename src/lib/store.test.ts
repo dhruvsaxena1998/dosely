@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { shiftKey, today } from '@/lib/dates'
 import { courseStatus, groupMedicines, isDeleted, logKey, scheduledSlotsOn } from '@/lib/schedule'
 import {
@@ -9,6 +9,7 @@ import {
   restartMedicine,
   restoreMedicine,
   setDose,
+  setDoses,
   stopMedicine,
   updateMedicine,
 } from '@/lib/store'
@@ -235,5 +236,71 @@ describe('the log', () => {
     setDose(id, now, 'after-breakfast', 'taken')
     setDose(id, now, 'after-breakfast', null)
     expect(getDatabase().log).toEqual({})
+  })
+})
+
+describe('answering several doses at once', () => {
+  it('reaches storage once, however many doses were answered', () => {
+    const ids = [addMedicine(calcium), addMedicine({ ...calcium, name: 'Vitamin D3' })]
+    const write = vi.spyOn(Storage.prototype, 'setItem')
+
+    setDoses(
+      now,
+      ids.map((groupId) => ({ groupId, slot: 'after-breakfast' as const, state: 'taken' as const })),
+    )
+
+    expect(write).toHaveBeenCalledTimes(1)
+    expect(Object.keys(getDatabase().log)).toHaveLength(2)
+    write.mockRestore()
+  })
+
+  it('stamps each entry with the name from the version owning that date', () => {
+    const yesterday = shiftKey(now, -1)
+    const base = {
+      groupId: 'grp',
+      slots: ['after-breakfast'],
+      repeatEveryDays: 1,
+      anchorDate: shiftKey(now, -5),
+      durationValue: 30,
+      durationUnit: 'days',
+      createdAt: '2025-09-01T00:00:00.000Z',
+    }
+    // Two versions with two names, which the app itself cannot produce — a
+    // rename rewrites every version — so that the version boundary is the only
+    // thing the stamp could be reading.
+    importDatabase(
+      JSON.stringify({
+        version: 1,
+        medicines: [
+          { ...base, id: 'v1', name: 'Calcium with D3', effectiveFrom: base.anchorDate, closedOn: now, closedBy: 'superseded' },
+          { ...base, id: 'v2', name: 'Calcium 500', effectiveFrom: now },
+        ],
+        log: {},
+      }),
+    )
+
+    setDoses(yesterday, [{ groupId: 'grp', slot: 'after-breakfast', state: 'taken' }])
+    setDose('grp', now, 'after-breakfast', 'taken')
+
+    expect(getDatabase().log[logKey('grp', yesterday, 'after-breakfast')].name).toBe('Calcium with D3')
+    expect(getDatabase().log[logKey('grp', now, 'after-breakfast')].name).toBe('Calcium 500')
+  })
+
+  it('takes entries away without disturbing the ones it was not given', () => {
+    const id = addMedicine({ ...calcium, slots: ['after-breakfast', 'after-dinner'] })
+    setDose(id, now, 'after-breakfast', 'taken')
+    setDose(id, now, 'after-dinner', 'skipped')
+
+    setDoses(now, [{ groupId: id, slot: 'after-breakfast', state: null }])
+
+    expect(getDatabase().log[logKey(id, now, 'after-breakfast')]).toBeUndefined()
+    expect(getDatabase().log[logKey(id, now, 'after-dinner')].state).toBe('skipped')
+  })
+
+  it('writes nothing at all when there is nothing to answer', () => {
+    const write = vi.spyOn(Storage.prototype, 'setItem')
+    setDoses(now, [])
+    expect(write).not.toHaveBeenCalled()
+    write.mockRestore()
   })
 })

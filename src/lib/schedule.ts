@@ -236,3 +236,31 @@ export function doseHistory(g: MedicineGroup): { date: DateKey; slot: SlotId }[]
   }
   return out
 }
+
+/** What a press on a whole slot heading does. */
+export type SlotAction = 'fill' | 'clear'
+
+/**
+ * What a press on a whole slot would do, and undefined where a slot offers no
+ * bulk control at all.
+ *
+ * A slot of one is already one press, so the heading would only be a second
+ * target for the same act. Otherwise a slot with anything left unanswered fills,
+ * and a slot that is entirely taken clears back.
+ *
+ * A skip is a decision, and the two halves of this control treat it the same
+ * way: filling steps over it, and clearing never takes it away. That leaves a
+ * slot holding one with no symmetric clear to offer — everything a clear could
+ * undo, it would have to leave behind — so it keeps offering the fill, which by
+ * then has nothing left to do and is the idempotent no-op it always was.
+ */
+export function slotAction(doses: readonly Dose[]): SlotAction | undefined {
+  if (doses.length < 2) return undefined
+  if (doses.some((d) => d.outcome === 'skipped')) return 'fill'
+  return doses.every((d) => d.outcome === 'taken') ? 'clear' : 'fill'
+}
+
+/** The doses a press would actually write, which is never the whole slot. */
+export function slotTargets(doses: readonly Dose[], action: SlotAction): Dose[] {
+  return doses.filter((d) => (action === 'fill' ? !d.entry : d.outcome === 'taken'))
+}
