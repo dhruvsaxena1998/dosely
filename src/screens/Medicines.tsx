@@ -26,6 +26,7 @@ import { courseStatus, groupMedicines, nextOpenDate } from '@/lib/schedule'
 import { slotLabel, sortSlots } from '@/lib/slots'
 import {
   deleteMedicine,
+  purgeMedicine,
   restoreMedicine,
   resumeMedicine,
   stopMedicine,
@@ -34,7 +35,11 @@ import {
 import { cn } from '@/lib/utils'
 import type { Database } from '@/types'
 
-type Confirm = { kind: 'stop'; group: MedicineGroup } | { kind: 'delete'; group: MedicineGroup } | null
+type Confirm =
+  | { kind: 'stop'; group: MedicineGroup }
+  | { kind: 'delete'; group: MedicineGroup }
+  | { kind: 'purge'; group: MedicineGroup }
+  | null
 
 /**
  * How many medicines it takes before a search field earns the space it costs.
@@ -153,25 +158,33 @@ export function Medicines() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {confirm?.kind === 'stop' ? 'Stop this course?' : 'Delete this medicine?'}
+              {confirm?.kind === 'stop'
+                ? 'Stop this course?'
+                : confirm?.kind === 'purge'
+                  ? 'Delete forever?'
+                  : 'Delete this medicine?'}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {confirm?.kind === 'stop'
                 ? `${confirm.group.current.name} stops appearing from today. Anything you already ticked stays in your history.`
-                : `${confirm?.group.current.name} disappears from Today and Medicines. Its history is kept, and you can restore it from the archive.`}
+                : confirm?.kind === 'purge'
+                  ? `${confirm.group.current.name} and its whole history — every tick, skip and miss — are removed for good. This cannot be undone.`
+                  : `${confirm?.group.current.name} disappears from Today and Medicines. Its history is kept, and you can restore it from the archive.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
+              variant={confirm?.kind === 'purge' ? 'destructive' : 'default'}
               onClick={() => {
                 if (!confirm) return
                 if (confirm.kind === 'stop') stopMedicine(confirm.group.groupId)
+                else if (confirm.kind === 'purge') purgeMedicine(confirm.group.groupId)
                 else deleteMedicine(confirm.group.groupId)
                 setConfirm(null)
               }}
             >
-              {confirm?.kind === 'stop' ? 'Stop it' : 'Delete'}
+              {confirm?.kind === 'stop' ? 'Stop it' : confirm?.kind === 'purge' ? 'Delete forever' : 'Delete'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -380,6 +393,21 @@ function Action({
         >
           <Trash2 className="size-3.5" />
           Delete
+        </Button>
+      )
+    // The delete behind the delete, offered once the medicine is already in the
+    // archive. Takes the history with it, so it asks twice — here and in the
+    // dialog — and lands in destructive colours both times.
+    case 'purge':
+      return (
+        <Button
+          size="sm"
+          variant="ghost"
+          className="ml-auto text-destructive"
+          onClick={() => onConfirm({ kind: 'purge', group })}
+        >
+          <Trash2 className="size-3.5" />
+          Delete forever
         </Button>
       )
   }

@@ -6,6 +6,7 @@ import {
   deleteMedicine,
   getDatabase,
   importDatabase,
+  purgeMedicine,
   restoreMedicine,
   resumeMedicine,
   setDose,
@@ -136,6 +137,29 @@ describe('stopping, deleting and restarting', () => {
 
     expect(records(id)[0].deletedAt).toBeTruthy()
     expect(Object.keys(getDatabase().log)).toHaveLength(1)
+  })
+
+  it('purges every version and every entry it ever earned', () => {
+    const id = addMedicine(calcium)
+    setDose(id, shiftKey(now, -1), 'after-breakfast', 'taken')
+    setDose(id, now, 'after-breakfast', 'taken')
+    deleteMedicine(id)
+    purgeMedicine(id)
+
+    expect(records(id)).toHaveLength(0)
+    expect(getDatabase().log).toEqual({})
+  })
+
+  it('purges only the medicine asked about', () => {
+    const id = addMedicine(calcium)
+    const other = addMedicine({ ...calcium, name: 'Vitamin D3' })
+    setDose(id, now, 'after-breakfast', 'taken')
+    setDose(other, now, 'after-breakfast', 'taken')
+    purgeMedicine(id)
+
+    expect(records(id)).toHaveLength(0)
+    expect(records(other)).toHaveLength(1)
+    expect(getDatabase().log[logKey(other, now, 'after-breakfast')].state).toBe('taken')
   })
 
 })

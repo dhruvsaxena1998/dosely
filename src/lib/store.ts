@@ -185,6 +185,25 @@ export function restoreMedicine(groupId: string) {
 }
 
 /**
+ * The delete behind the delete. Soft delete files a medicine in the archive and
+ * keeps its history; this takes even that away. Every version of the medicine
+ * goes, and every entry it ever earned goes with it — the archive and the
+ * History screen are both quieter afterwards, and there is nothing left to
+ * restore. The other medicines' entries stay exactly where they were.
+ */
+export function purgeMedicine(groupId: string) {
+  const log: Database['log'] = {}
+  for (const [key, entry] of Object.entries(db.log)) {
+    if (entry.groupId !== groupId) log[key] = entry
+  }
+  commit({
+    ...db,
+    medicines: db.medicines.filter((m) => m.groupId !== groupId),
+    log,
+  })
+}
+
+/**
  * A stop, undone — by carrying on rather than by rewinding.
  *
  * The stop is not cleared. A new version of the same medicine opens from today

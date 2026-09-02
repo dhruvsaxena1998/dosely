@@ -10,7 +10,7 @@ import { Medicines } from '@/screens/Medicines'
 import { shiftKey, today } from '@/lib/dates'
 import { loadExamples } from '@/lib/examples'
 import { courseStatus, groupMedicines } from '@/lib/schedule'
-import { addMedicine, getDatabase, importDatabase, setDose, stopMedicine } from '@/lib/store'
+import { addMedicine, deleteMedicine, getDatabase, importDatabase, setDose, stopMedicine } from '@/lib/store'
 
 const now = today()
 
@@ -299,6 +299,33 @@ describe('the Medicines screen', () => {
     expect(screen.getByText('Deleted')).toBeTruthy()
     expect(screen.getByRole('button', { name: /restore/i })).toBeTruthy()
     expect(Object.keys(getDatabase().log)).toHaveLength(1)
+  })
+
+  it('deletes forever from the archive, history and all', async () => {
+    const user = userEvent.setup()
+    const id = addMedicine({
+      name: 'Calcium with D3',
+      slots: ['after-breakfast'],
+      repeatEveryDays: 1,
+      anchorDate: shiftKey(now, -1),
+      durationValue: 30,
+      durationUnit: 'days',
+    })
+    setDose(id, shiftKey(now, -1), 'after-breakfast', 'taken')
+    deleteMedicine(id)
+    at('/medicines', <Medicines />, '/medicines')
+    await openArchive(user)
+
+    expect(screen.getByRole('button', { name: /delete forever/i })).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: /delete forever/i }))
+    // The warning names the price before it is paid.
+    expect(screen.getByText(/cannot be undone/)).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: /^Delete forever$/ }))
+
+    // The card is gone from the archive — there is nothing left to restore —
+    // and the History screen has nothing left to read.
+    expect(screen.queryByText('Calcium with D3')).toBeNull()
+    expect(getDatabase().log).toEqual({})
   })
 
   it('sends Start again to the add form rather than creating a course', async () => {
