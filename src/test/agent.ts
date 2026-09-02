@@ -1,6 +1,6 @@
 import { afterEach } from 'vitest'
 
-const PLANTED = ['userAgent', 'maxTouchPoints'] as const
+const PLANTED = ['userAgent', 'maxTouchPoints', 'vibrate'] as const
 
 /**
  * Pretends to be a device. jsdom keeps userAgent on Navigator.prototype and
@@ -10,6 +10,15 @@ const PLANTED = ['userAgent', 'maxTouchPoints'] as const
 export function pretendAgent(agent: string, touchPoints = 0) {
   Object.defineProperty(navigator, 'userAgent', { value: agent, configurable: true })
   Object.defineProperty(navigator, 'maxTouchPoints', { value: touchPoints, configurable: true })
+}
+
+/**
+ * Pretends to be a platform with the Vibration API, which is the only thing
+ * that tells Android and Chrome apart from iOS here — and which jsdom, like
+ * iOS, has never heard of.
+ */
+export function pretendVibration() {
+  Object.defineProperty(navigator, 'vibrate', { value: () => true, configurable: true })
 }
 
 export const IPHONE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15'

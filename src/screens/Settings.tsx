@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Download, Upload } from 'lucide-react'
 import { Appearance } from '@/components/Appearance'
 import { AppUpdate } from '@/components/AppUpdate'
+import { Feedback } from '@/components/Feedback'
 import { PageHeader } from '@/components/PageHeader'
 import { ThemePicker } from '@/components/ThemePicker'
 import { Button } from '@/components/ui/button'
@@ -45,6 +46,15 @@ export function Settings() {
         <section>
           <Heading>Light and dark</Heading>
           <Appearance />
+        </section>
+
+        <section>
+          <Heading>Feedback</Heading>
+          <p className="mb-3 text-xs leading-relaxed text-muted-foreground">
+            A tick answers back in the hand. iPhones cannot be asked whether that landed, so they
+            get a short click as well — turn it down to Haptic if the room is asleep.
+          </p>
+          <Feedback />
         </section>
 
         <section>
