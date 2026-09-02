@@ -59,7 +59,7 @@ describe('the Medicines screen', () => {
     await openArchive(user)
 
     expect(screen.getByText('Archive')).toBeTruthy()
-    expect(screen.getByRole('button', { name: /start again/i })).toBeTruthy()
+    expect(screen.getByRole('link', { name: /start again/i })).toBeTruthy()
     // A course that ran its course was not stopped, so there is no stop to undo.
     expect(screen.queryByRole('button', { name: /resume/i })).toBeNull()
   })
@@ -82,7 +82,7 @@ describe('the Medicines screen', () => {
     expect(screen.getByText('Stopped')).toBeTruthy()
     expect(screen.getByRole('button', { name: /resume/i })).toBeTruthy()
     // The two ways out of a closed course are one choice, never both offered.
-    expect(screen.queryByRole('button', { name: /start again/i })).toBeNull()
+    expect(screen.queryByRole('link', { name: /start again/i })).toBeNull()
   })
 
   it('offers Start again rather than Resume once the span has run out', async () => {
@@ -114,7 +114,7 @@ describe('the Medicines screen', () => {
     at('/medicines', <Medicines />, '/medicines')
     await openArchive(user)
 
-    expect(screen.getByRole('button', { name: /start again/i })).toBeTruthy()
+    expect(screen.getByRole('link', { name: /start again/i })).toBeTruthy()
     expect(screen.queryByRole('button', { name: /resume/i })).toBeNull()
   })
 
@@ -300,7 +300,40 @@ describe('the Medicines screen', () => {
     expect(screen.getByRole('button', { name: /restore/i })).toBeTruthy()
     expect(Object.keys(getDatabase().log)).toHaveLength(1)
   })
+
+  it('sends Start again to the add form rather than creating a course', async () => {
+    const user = userEvent.setup()
+    const id = finishedCourse()
+    at('/medicines', <Medicines />, '/medicines')
+    await openArchive(user)
+
+    const link = screen.getByRole('link', { name: /start again/i })
+    expect(link.getAttribute('href')).toBe(`/medicines/new?from=${id}`)
+    // The press used to be the mutation. Nothing exists until the form is saved.
+    expect(groupMedicines(getDatabase().medicines)).toHaveLength(1)
+  })
 })
+
+/** What a labelled field currently holds. */
+function value(label: string): string {
+  return (screen.getByLabelText(label) as HTMLInputElement | HTMLTextAreaElement).value
+}
+
+/**
+ * A course that ran its full length and ended two weeks back. Start again is
+ * what a card offers by then, there being nothing left to resume into.
+ */
+function finishedCourse(): string {
+  return addMedicine({
+    name: 'Amoxicillin 500MG',
+    note: 'With food',
+    slots: ['after-breakfast', 'after-dinner'],
+    repeatEveryDays: 1,
+    anchorDate: shiftKey(now, -20),
+    durationValue: 14,
+    durationUnit: 'days',
+  })
+}
 
 describe('the medicine form', () => {
   it('previews the exact dose count before saving', async () => {
@@ -417,7 +450,68 @@ describe('the medicine form', () => {
       expect(g.current.durationUnit).toBe('months')
     }
   })
+
+  it('opens Start again prefilled, but starting today rather than when the old course did', () => {
+    const id = finishedCourse()
+    at(`/medicines/new?from=${id}`, <MedicineForm />, '/medicines/new')
+
+    // An add, not an edit: saving seals the old course under its own group.
+    expect(screen.getByRole('heading', { name: /add medicine/i })).toBeTruthy()
+    expect(value('Name')).toBe('Amoxicillin 500MG')
+    expect(value('Note')).toBe('With food')
+    expect(screen.getByRole('button', { name: 'After breakfast' }).getAttribute('data-state')).toBe('on')
+    expect(screen.getByRole('button', { name: 'After dinner' }).getAttribute('data-state')).toBe('on')
+    expect(screen.getByRole('radio', { name: 'Daily' }).getAttribute('data-state')).toBe('on')
+    expect(value('Runs for')).toBe('14')
+    // The one field that is not carried over. A repeat prescription starts when
+    // the pharmacy hands it over.
+    expect(value('Starts on')).toBe(now)
+    expect(screen.getByText('28 doses across 14 days')).toBeTruthy()
+  })
+
+  it('does not warn that Start again duplicates the course it came from', () => {
+    const id = finishedCourse()
+    at(`/medicines/new?from=${id}`, <MedicineForm />, '/medicines/new')
+
+    expect(screen.queryByText(/you already have a course called/i)).toBeNull()
+  })
+
+  it('creates nothing by opening Start again, and offers a way back out', () => {
+    finishedCourse()
+    at(`/medicines/new?from=${getDatabase().medicines[0].groupId}`, <MedicineForm />, '/medicines/new')
+
+    expect(groupMedicines(getDatabase().medicines)).toHaveLength(1)
+    expect(screen.getByRole('link', { name: 'Cancel' }).getAttribute('href')).toBe('/medicines')
+  })
+
+  it('takes a new duration before the course exists, and leaves the old one sealed', async () => {
+    const user = userEvent.setup()
+    const id = finishedCourse()
+    at(`/medicines/new?from=${id}`, <MedicineForm />, '/medicines/new')
+
+    // The length you are most likely to want to change, and the reason this is
+    // a form rather than a button.
+    const duration = screen.getByLabelText('Runs for')
+    await user.clear(duration)
+    await user.type(duration, '7')
+    await user.click(screen.getByRole('button', { name: 'Add medicine' }))
+
+    const groups = groupMedicines(getDatabase().medicines)
+    expect(groups).toHaveLength(2)
+    const repeat = groups.find((g) => g.groupId !== id)!
+    expect(repeat.current.durationValue).toBe(7)
+    expect(repeat.current.anchorDate).toBe(now)
+    expect(courseStatus(repeat, now)).toBe('active')
+
+    // The course it repeats is untouched: same single version, same span.
+    const source = groups.find((g) => g.groupId === id)!
+    expect(source.records).toHaveLength(1)
+    expect(source.current.durationValue).toBe(14)
+    expect(source.current.anchorDate).toBe(shiftKey(now, -20))
+    expect(courseStatus(source, now)).toBe('finished')
+  })
 })
+
 
 describe('the History screens', () => {
   it('counts taken, skipped and missed against the whole course', () => {

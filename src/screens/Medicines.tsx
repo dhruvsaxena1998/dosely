@@ -26,7 +26,6 @@ import { courseStatus, groupMedicines, nextOpenDate } from '@/lib/schedule'
 import { slotLabel, sortSlots } from '@/lib/slots'
 import {
   deleteMedicine,
-  restartMedicine,
   restoreMedicine,
   resumeMedicine,
   stopMedicine,
@@ -309,7 +308,7 @@ function MedicineCard({
 
       <div className="-mx-1 mt-3 flex flex-wrap items-center gap-1 border-t pt-2">
         {courseActions(group, now).map((action) => (
-          <Action key={action} action={action} group={group} now={now} onConfirm={onConfirm} />
+          <Action key={action} action={action} group={group} onConfirm={onConfirm} />
         ))}
       </div>
     </article>
@@ -324,12 +323,10 @@ function MedicineCard({
 function Action({
   action,
   group,
-  now,
   onConfirm,
 }: {
   action: CourseAction
   group: MedicineGroup
-  now: string
   onConfirm: (c: Confirm) => void
 }) {
   switch (action) {
@@ -354,11 +351,16 @@ function Action({
           Resume
         </Button>
       )
+    // Navigation, not a mutation. A repeat prescription is usually a different
+    // length and rarely starts on the day you happened to tap, so it opens the
+    // add form carrying this course's details rather than guessing at both.
     case 'restart':
       return (
-        <Button size="sm" variant="ghost" onClick={() => restartMedicine(group.groupId, now)}>
-          <RotateCcw className="size-3.5" />
-          Start again
+        <Button asChild size="sm" variant="ghost">
+          <Link to={`/medicines/new?from=${group.groupId}`}>
+            <RotateCcw className="size-3.5" />
+            Start again
+          </Link>
         </Button>
       )
     case 'restore':
