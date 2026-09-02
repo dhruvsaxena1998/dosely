@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Pill, Plus, RotateCcw, Trash2 } from 'lucide-react'
+import { Pill, Plus, RotateCcw, Trash2, Undo2 } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -15,6 +15,8 @@ import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/EmptyState'
 import { MetaLine } from '@/components/MetaLine'
 import { PageHeader } from '@/components/PageHeader'
+import type { CourseAction } from '@/lib/actions'
+import { courseActions } from '@/lib/actions'
 import { relativeDayLabel, useToday } from '@/lib/dates'
 import { describeDuration, describeGroupSpan, describeRepeat } from '@/lib/describe'
 import { loadExamples } from '@/lib/examples'
@@ -25,6 +27,7 @@ import {
   deleteMedicine,
   restartMedicine,
   restoreMedicine,
+  resumeMedicine,
   stopMedicine,
   useDatabase,
 } from '@/lib/store'
@@ -202,38 +205,77 @@ function MedicineCard({
       {m.note ? <p className="mt-2.5 text-xs leading-relaxed text-muted-foreground">{m.note}</p> : null}
 
       <div className="-mx-1 mt-3 flex flex-wrap items-center gap-1 border-t pt-2">
-        {deleted ? (
-          <Button size="sm" variant="ghost" onClick={() => restoreMedicine(group.groupId)}>
-            <RotateCcw className="size-3.5" />
-            Restore
-          </Button>
-        ) : status === 'active' || status === 'upcoming' ? (
-          <>
-            <Button asChild size="sm" variant="ghost">
-              <Link to={`/medicines/${group.groupId}/edit`}>Edit</Link>
-            </Button>
-            <Button size="sm" variant="ghost" onClick={() => onConfirm({ kind: 'stop', group })}>
-              Stop
-            </Button>
-          </>
-        ) : (
-          <Button size="sm" variant="ghost" onClick={() => restartMedicine(group.groupId, now)}>
-            <RotateCcw className="size-3.5" />
-            Start again
-          </Button>
-        )}
-        {deleted ? null : (
-          <Button
-            size="sm"
-            variant="ghost"
-            className="ml-auto text-muted-foreground"
-            onClick={() => onConfirm({ kind: 'delete', group })}
-          >
-            <Trash2 className="size-3.5" />
-            Delete
-          </Button>
-        )}
+        {courseActions(group, now).map((action) => (
+          <Action key={action} action={action} group={group} now={now} onConfirm={onConfirm} />
+        ))}
       </div>
     </article>
   )
+}
+
+/**
+ * One action, drawn. Which actions a card offers is `courseActions`; this only
+ * knows how each one looks and what it calls, so the two cannot disagree about
+ * when a button should be there.
+ */
+function Action({
+  action,
+  group,
+  now,
+  onConfirm,
+}: {
+  action: CourseAction
+  group: MedicineGroup
+  now: string
+  onConfirm: (c: Confirm) => void
+}) {
+  switch (action) {
+    case 'edit':
+      return (
+        <Button asChild size="sm" variant="ghost">
+          <Link to={`/medicines/${group.groupId}/edit`}>Edit</Link>
+        </Button>
+      )
+    case 'stop':
+      return (
+        <Button size="sm" variant="ghost" onClick={() => onConfirm({ kind: 'stop', group })}>
+          Stop
+        </Button>
+      )
+    // No dialog. A resume adds days back rather than taking any away, and
+    // stopping again is right there — the two things a confirmation is for.
+    case 'resume':
+      return (
+        <Button size="sm" variant="ghost" onClick={() => resumeMedicine(group.groupId)}>
+          <Undo2 className="size-3.5" />
+          Resume
+        </Button>
+      )
+    case 'restart':
+      return (
+        <Button size="sm" variant="ghost" onClick={() => restartMedicine(group.groupId, now)}>
+          <RotateCcw className="size-3.5" />
+          Start again
+        </Button>
+      )
+    case 'restore':
+      return (
+        <Button size="sm" variant="ghost" onClick={() => restoreMedicine(group.groupId)}>
+          <RotateCcw className="size-3.5" />
+          Restore
+        </Button>
+      )
+    case 'delete':
+      return (
+        <Button
+          size="sm"
+          variant="ghost"
+          className="ml-auto text-muted-foreground"
+          onClick={() => onConfirm({ kind: 'delete', group })}
+        >
+          <Trash2 className="size-3.5" />
+          Delete
+        </Button>
+      )
+  }
 }

@@ -141,6 +141,19 @@ export function courseStatus(g: MedicineGroup, ref: DateKey = today()): CourseSt
   return closed < courseEnd(g.current) ? 'stopped' : 'finished'
 }
 
+/**
+ * Whether a stopped course still has somewhere to go.
+ *
+ * A stop cuts a course short, and what is left of it is the stretch between now
+ * and the end the course was always going to have. Once that has passed there is
+ * nothing to resume into — a version opened today would own an empty window —
+ * so a course stopped and then left alone until its span ran out is asked to be
+ * started again rather than resumed.
+ */
+export function canResume(g: MedicineGroup, ref: DateKey = today()): boolean {
+  return courseStatus(g, ref) === 'stopped' && ref < courseEnd(g.current)
+}
+
 export function logKey(groupId: string, date: DateKey, slot: SlotId): string {
   return `${groupId}|${date}|${slot}`
 }

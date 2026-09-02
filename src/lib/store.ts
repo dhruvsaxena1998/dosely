@@ -2,7 +2,7 @@ import { useSyncExternalStore } from 'react'
 import type { DateKey } from '@/lib/dates'
 import { maxKey, today } from '@/lib/dates'
 import type { SlotId } from '@/lib/slots'
-import { closureOf, groupMedicines, logKey, recordWindow } from '@/lib/schedule'
+import { canResume, closureOf, groupMedicines, logKey, recordWindow } from '@/lib/schedule'
 import type { Database, DoseState, MedicineInput, MedicineRecord } from '@/types'
 
 const STORAGE_KEY = 'dosely.db.v1'
@@ -182,6 +182,46 @@ export function restoreMedicine(groupId: string) {
       m.groupId === groupId ? { ...m, deletedAt: undefined } : m,
     ),
   })
+}
+
+/**
+ * A stop, undone — by carrying on rather than by rewinding.
+ *
+ * The stop is not cleared. A new version of the same medicine opens from today
+ * and the stopped one keeps the bounded window it was given, which leaves the
+ * days in between owned by no version at all. Nothing covers them, so they
+ * schedule no doses, sit in no denominator and are never marked missed: a
+ * fortnight off reads as a fortnight off rather than as fourteen failures. The
+ * alternative — clearing the stop and letting the derivation fill the gap in —
+ * would convert a decision the user made into a stretch of neglect.
+ *
+ * The anchor and the duration come across untouched. The anchor keeps a weekly
+ * course on the weekday it always used, and the duration keeps the course
+ * ending when it was always going to end, so resuming never quietly extends a
+ * prescription. It takes a hole out of the middle of one.
+ */
+export function resumeMedicine(groupId: string) {
+  const group = groupMedicines(recordsOf(groupId))[0]
+  const current = group?.current
+  // Nothing to resume into once the original span has elapsed, and a version
+  // owning an empty window is a record that means nothing. The card offers
+  // Start again by then; this is the same rule, held where it cannot be skipped.
+  if (!current || !canResume(group)) return
+  const record: MedicineRecord = {
+    id: newId(),
+    groupId,
+    name: current.name,
+    note: current.note,
+    slots: current.slots,
+    repeatEveryDays: current.repeatEveryDays,
+    anchorDate: current.anchorDate,
+    durationValue: current.durationValue,
+    durationUnit: current.durationUnit,
+    effectiveFrom: today(),
+    deletedAt: current.deletedAt,
+    createdAt: new Date().toISOString(),
+  }
+  commit({ ...db, medicines: [...db.medicines, record] })
 }
 
 /** Same medicine, fresh course, new group so the old history stays sealed. */
