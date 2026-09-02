@@ -6,9 +6,11 @@ how interesting it is.
 
 Nothing here is a plan. Items become specs one tier at a time.
 
-Tier 1 is specced and sliced into tickets. Both live on GitHub, which is this
-repo's tracker — see `docs/agents/issue-tracker.md`. They are deliberately not
-mirrored here; one copy cannot drift from itself.
+Tiers 1 and 3 are specced and sliced into tickets. Both live on GitHub, which is
+this repo's tracker — see `docs/agents/issue-tracker.md`. They are deliberately
+not mirrored here; one copy cannot drift from itself.
+
+Tier 1:
 
 | Items | Spec | Tickets |
 |---|---|---|
@@ -17,7 +19,20 @@ mirrored here; one copy cannot drift from itself.
 | 1, 5 | [#12](https://github.com/dhruvsaxena1998/dosely/issues/12) make Stop reversible, and make Start again ask first | [#14](https://github.com/dhruvsaxena1998/dosely/issues/14), [#15](https://github.com/dhruvsaxena1998/dosely/issues/15) |
 | 3, 6 | [#13](https://github.com/dhruvsaxena1998/dosely/issues/13) fill a slot in one press, and find a medicine by name | [#16](https://github.com/dhruvsaxena1998/dosely/issues/16), [#17](https://github.com/dhruvsaxena1998/dosely/issues/17) |
 
-Tiers 2 to 4 are not specced. This file is the only record of them.
+Tier 3:
+
+| Items | Spec | Tickets |
+|---|---|---|
+| 13, 17 | [#41](https://github.com/dhruvsaxena1998/dosely/issues/41) ask before replacing the database, and let a device be handed on | [#44](https://github.com/dhruvsaxena1998/dosely/issues/44), [#45](https://github.com/dhruvsaxena1998/dosely/issues/45) |
+| 16 | [#42](https://github.com/dhruvsaxena1998/dosely/issues/42) say when a dose was not saved | one slice |
+| 15 | [#43](https://github.com/dhruvsaxena1998/dosely/issues/43) let a browser that cannot install through the door | one slice |
+
+Item 14 has no spec of its own. `navigator.storage.persist()` belongs to the
+storage adapter and is already an acceptance criterion on
+[#24](https://github.com/dhruvsaxena1998/dosely/issues/24), so speccing it again
+would be the drift this file exists to avoid.
+
+Tiers 2 and 4 are not specced. This file is the only record of them.
 
 ## Tier 1 — daily friction, cheap to fix
 
@@ -78,10 +93,10 @@ straight to `importDatabase`, which commits over the whole database. No
 confirmation, no backup taken first, no preview of what is in the file, no merge.
 One wrong file and the data the app exists to hold is gone.
 
-**14. `navigator.storage.persist()` is never called.** The README worries at
-length about Safari clearing localStorage after seven days and answers it by
-asking the user to install to the home screen. The browser API that actually
-exempts the data is one line and is not in the codebase.
+**14. `navigator.storage.persist()` is never called.** _(Carried by #24.)_ The
+README worries at length about Safari clearing localStorage after seven days and
+answers it by asking the user to install to the home screen. The browser API that
+actually exempts the data is one line and is not in the codebase.
 
 **15. The install gate has no escape hatch.** `gateEnforced()` returns true
 unconditionally in production. Desktop Firefox cannot install PWAs, so those
