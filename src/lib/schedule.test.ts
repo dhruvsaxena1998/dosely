@@ -12,6 +12,7 @@ import {
   nextDueDate,
   nextOpenDate,
   scheduleHorizon,
+  sameSchedule,
   slotAction,
   slotTargets,
 } from '@/lib/schedule'
@@ -459,5 +460,51 @@ describe('what a press on a whole slot does', () => {
     const doses = dosesOn(db(records), '2025-09-01', '2025-09-02')
     expect(doses[0].outcome).toBe('missed')
     expect(slotTargets(doses, 'fill')).toHaveLength(1)
+  })
+})
+
+describe('repeating on chosen days of the week', () => {
+  // 2025-09-01 is a Monday.
+  const monWedFri: MedicineInput = {
+    name: 'Alendronate',
+    slots: ['before-breakfast'],
+    repeatEveryDays: 1,
+    weekdays: [1, 3, 5],
+    anchorDate: '2025-09-01',
+    durationValue: 2,
+    durationUnit: 'weeks',
+  }
+
+  it('falls only on the chosen days', () => {
+    const dates = dosesFor(record(monWedFri)).map((d) => d.date)
+    expect(dates).toEqual(['2025-09-01', '2025-09-03', '2025-09-05', '2025-09-08', '2025-09-10', '2025-09-12'])
+  })
+
+  it('takes its first dose on the next chosen day when the start is not one', () => {
+    const m = record({ ...monWedFri, anchorDate: '2025-09-02' })
+    expect(isDoseDay(m, '2025-09-02')).toBe(false)
+    expect(dosesFor(m)[0].date).toBe('2025-09-03')
+  })
+
+  it('reads every day as no filter at all', () => {
+    const all = record({ ...monWedFri, weekdays: [1, 2, 3, 4, 5, 6, 7] })
+    const none = record({ ...monWedFri, weekdays: undefined })
+    expect(dosesFor(all)).toEqual(dosesFor(none))
+    expect(dosesFor(all)).toHaveLength(14)
+  })
+
+  it('schedules the same days as a legacy weekly record on the same anchor', () => {
+    const legacy = record({ ...monWedFri, repeatEveryDays: 7, weekdays: undefined, durationValue: 5 })
+    const mondays = record({ ...monWedFri, weekdays: [1], durationValue: 5 })
+    expect(dosesFor(mondays)).toEqual(dosesFor(legacy))
+    expect(sameSchedule(legacy, mondays)).toBe(true)
+  })
+
+  it('tells a moved day apart from a respelled one', () => {
+    const legacy = record({ ...monWedFri, repeatEveryDays: 7, weekdays: undefined })
+    expect(sameSchedule(legacy, { ...legacy, repeatEveryDays: 1, weekdays: [2] })).toBe(false)
+    expect(sameSchedule(record(monWedFri), { ...monWedFri, weekdays: [5, 3, 1] })).toBe(true)
+    expect(sameSchedule(record(monWedFri), { ...monWedFri, weekdays: [1, 3] })).toBe(false)
+    expect(sameSchedule(record({ ...monWedFri, weekdays: undefined }), { ...monWedFri, weekdays: [1, 2, 3, 4, 5, 6, 7] })).toBe(true)
   })
 })

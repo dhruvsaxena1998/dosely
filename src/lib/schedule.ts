@@ -2,6 +2,8 @@ import type { DateKey } from '@/lib/dates'
 import { courseEndFrom, daysBetween, maxKey, minKey, shiftKey, today } from '@/lib/dates'
 import type { SlotId } from '@/lib/slots'
 import { sortSlots } from '@/lib/slots'
+import type { Weekday } from '@/lib/weekdays'
+import { isEveryDay, sortWeekdays, weekdayOf } from '@/lib/weekdays'
 import type { Closure, DoseLogEntry, DoseState, Database, MedicineRecord } from '@/types'
 
 /** All versions of one medicine, oldest first. */
@@ -26,7 +28,43 @@ export function isDoseDay(m: MedicineRecord, date: DateKey): boolean {
   const { from, to } = recordWindow(m)
   if (date < from || date >= to) return false
   const offset = daysBetween(m.anchorDate, date)
-  return offset >= 0 && offset % m.repeatEveryDays === 0
+  if (offset < 0 || offset % m.repeatEveryDays !== 0) return false
+  return !m.weekdays || m.weekdays.includes(weekdayOf(date))
+}
+
+/** The fields that decide which days and slots a version schedules. */
+export type ScheduleShape = Pick<
+  MedicineRecord,
+  'slots' | 'repeatEveryDays' | 'weekdays' | 'anchorDate' | 'durationValue' | 'durationUnit'
+>
+
+/**
+ * Whether two schedules produce the same doses. Compared on what they schedule
+ * rather than how they are written, because the same week can be spelled two
+ * ways: a record saved before weekdays existed says "every 7 days", and the form
+ * now says "Tuesdays". Reading either as a change would fork a version the user
+ * never edited. Every-day is likewise the same whether the set is written out or
+ * left off.
+ */
+export function sameSchedule(a: ScheduleShape, b: ScheduleShape): boolean {
+  const x = repeatOf(a)
+  const y = repeatOf(b)
+  return (
+    a.anchorDate === b.anchorDate &&
+    a.durationValue === b.durationValue &&
+    a.durationUnit === b.durationUnit &&
+    a.slots.length === b.slots.length &&
+    a.slots.every((s) => b.slots.includes(s)) &&
+    x.every === y.every &&
+    x.days.length === y.days.length &&
+    x.days.every((d, i) => d === y.days[i])
+  )
+}
+
+function repeatOf(s: ScheduleShape): { every: number; days: Weekday[] } {
+  if (s.repeatEveryDays === 7 && !s.weekdays) return { every: 1, days: [weekdayOf(s.anchorDate)] }
+  if (s.repeatEveryDays !== 1 || isEveryDay(s.weekdays)) return { every: s.repeatEveryDays, days: [] }
+  return { every: 1, days: sortWeekdays(s.weekdays!) }
 }
 
 export function groupMedicines(medicines: readonly MedicineRecord[]): MedicineGroup[] {

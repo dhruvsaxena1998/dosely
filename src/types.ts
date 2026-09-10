@@ -1,5 +1,6 @@
 import type { DateKey, DurationUnit } from '@/lib/dates'
 import type { SlotId } from '@/lib/slots'
+import type { Weekday } from '@/lib/weekdays'
 
 /**
  * Why a version is closed. The user ending the course and an edit forking a new
@@ -28,6 +29,11 @@ export interface MedicineRecord {
   slots: SlotId[]
   /** 1 is daily, 7 is weekly. */
   repeatEveryDays: number
+  /**
+   * The weekdays a daily medicine actually falls on. Absent means every day.
+   * Only meaningful when `repeatEveryDays` is 1; the form never writes both.
+   */
+  weekdays?: Weekday[]
   /** Start of the course, and the phase the repeat counts from. */
   anchorDate: DateKey
   durationValue: number
@@ -69,6 +75,7 @@ export interface MedicineInput {
   note?: string
   slots: SlotId[]
   repeatEveryDays: number
+  weekdays?: Weekday[]
   anchorDate: DateKey
   durationValue: number
   durationUnit: DurationUnit

@@ -69,7 +69,7 @@ export function MedicineHistory() {
         <div className="px-4 py-5">
           <MetaLine
             parts={[
-              describeRepeat(m.repeatEveryDays),
+              describeRepeat(m),
               describeDuration(m.durationValue, m.durationUnit),
               describeGroupSpan(group),
             ]}

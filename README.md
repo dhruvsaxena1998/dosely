@@ -148,9 +148,17 @@ speaker with it.
 
 ## The model
 
-A **medicine** has a name, a set of **slots**, a repeat of every N days, a start
-date, and a duration. The seven slots are fixed and ordered: before breakfast,
-after breakfast, before lunch, after lunch, before dinner, after dinner, anytime.
+A **medicine** has a name, a set of **slots**, a repeat, a start date, and a
+duration. The seven slots are fixed and ordered: before breakfast, after
+breakfast, before lunch, after lunch, before dinner, after dinner, anytime.
+
+The repeat is either **days of the week** or **every N days**, never both. Days
+of the week is set like an alarm: all seven on until you turn one off, so daily
+costs nothing and "every day except Tuesday" is one press. Weekly is a week with
+one day on. Records saved before weekdays existed say "every 7 days" instead, and
+they keep working: the change check compares the days a schedule produces, not
+how it is spelled, so opening one and saving it untouched forks nothing. Weeks
+start on Monday everywhere.
 
 Each slot on each dose day produces its own tick. Twice a day means two slots, so
 "after breakfast and dinner" is two independent rows rather than one dose that
@@ -173,7 +181,7 @@ current version as of today and opens a new one, sharing a `groupId` so it still
 reads as one medicine. Each version owns a bounded date range, so what was
 prescribed on any past date stays exact and the history panel cannot lie.
 
-The fork keeps the original anchor date, so editing a weekly medicine on a
+The fork keeps the original anchor date, so editing a Monday medicine on a
 Wednesday does not drag its doses off their Monday.
 
 ### The log
@@ -208,6 +216,7 @@ stops at 29 Sep, because that is the last day it actually asks anything of you.
 ```
 src/lib/dates.ts       date keys, the 3am rollover, half-open course ends
 src/lib/slots.ts       the seven slots and their fixed order
+src/lib/weekdays.ts    ISO weekdays, Monday first, and the every-day normal form
 src/lib/schedule.ts    versions, dose days, adherence — all pure
 src/lib/store.ts       localStorage plus the mutations, the only stateful module
 src/lib/feedback.ts    whether and how a press answers back
