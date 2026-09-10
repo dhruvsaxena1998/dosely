@@ -4,6 +4,7 @@ import { examplePrescriptions } from '@/lib/examples'
 import {
   adherenceFor,
   courseStatus,
+  dayTallies,
   dosesOn,
   doseHistory,
   groupMedicines,
@@ -506,5 +507,45 @@ describe('repeating on chosen days of the week', () => {
     expect(sameSchedule(record(monWedFri), { ...monWedFri, weekdays: [5, 3, 1] })).toBe(true)
     expect(sameSchedule(record(monWedFri), { ...monWedFri, weekdays: [1, 3] })).toBe(false)
     expect(sameSchedule(record({ ...monWedFri, weekdays: undefined }), { ...monWedFri, weekdays: [1, 2, 3, 4, 5, 6, 7] })).toBe(true)
+  })
+})
+
+describe('tallying a day across medicines', () => {
+  const daily: MedicineInput = {
+    name: 'Calcium with D3',
+    slots: ['after-breakfast', 'after-dinner'],
+    repeatEveryDays: 1,
+    anchorDate: '2025-09-01',
+    durationValue: 7,
+    durationUnit: 'days',
+  }
+  const weekly: MedicineInput = { ...daily, name: 'Vitamin B12', slots: ['anytime'], repeatEveryDays: 7 }
+
+  it('counts every scheduled slot on a day, whatever became of it', () => {
+    const a = record(daily)
+    const b = record(weekly)
+    const log = {
+      [`${a.groupId}|2025-09-01|after-breakfast`]: { groupId: a.groupId, date: '2025-09-01', slot: 'after-breakfast' as const, state: 'taken' as const, at: '', name: '' },
+      [`${b.groupId}|2025-09-01|anytime`]: { groupId: b.groupId, date: '2025-09-01', slot: 'anytime' as const, state: 'skipped' as const, at: '', name: '' },
+    }
+    const days = dayTallies(db([a, b], log), groupMedicines([a, b]), '2025-09-01', '2025-09-08', '2025-09-03')
+    expect(days.get('2025-09-01')).toEqual({ scheduled: 3, taken: 1, skipped: 1, missed: 1, pending: 0 })
+    expect(days.get('2025-09-02')).toEqual({ scheduled: 2, taken: 0, skipped: 0, missed: 2, pending: 0 })
+    // Today and after are pending, not missed.
+    expect(days.get('2025-09-03')).toEqual({ scheduled: 2, taken: 0, skipped: 0, missed: 0, pending: 2 })
+    expect(days.get('2025-09-07')?.scheduled).toBe(2)
+  })
+
+  it('leaves out days with nothing scheduled, and days outside the window', () => {
+    const b = record(weekly)
+    const days = dayTallies(db([b]), groupMedicines([b]), '2025-08-01', '2025-10-01', '2025-09-03')
+    expect([...days.keys()]).toEqual(['2025-09-01'])
+    expect(dayTallies(db([b]), groupMedicines([b]), '2025-09-02', '2025-10-01', '2025-09-03').size).toBe(0)
+  })
+
+  it('includes deleted medicines when handed them', () => {
+    const a = record(daily, { deletedAt: '2025-09-05T00:00:00.000Z' })
+    const days = dayTallies(db([a]), groupMedicines([a]), '2025-09-01', '2025-09-08', '2025-09-10')
+    expect(days.size).toBe(7)
   })
 })

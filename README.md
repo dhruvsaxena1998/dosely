@@ -34,6 +34,21 @@ hatched gap in the adherence bar. Missed is defined here as the lack of a record
 it looks like one, and an app you open five times a day should not turn red at you
 over a course you are already living with. Red is reserved for delete.
 
+### A month of pockets
+
+History draws the month as a grid of the same pockets, one per day, on the History
+screen across every course and on each medicine's page for that course alone. A
+cell's fill is how much of the day was taken, in four fixed steps rather than a
+ramp, so Monochrome and Newsprint keep them apart with no hue. Skipped and pending
+doses are left out of the reckoning: a skip is a decision and a pending dose is
+not a lapse, so today reads as full until something is actually missed. A day
+with nothing taken and something missed is the hatch. Pressing a day with anything
+behind it opens a sheet listing its doses; a blank day is not a button. The stamp
+under the month name is the one number a doctor asks for.
+
+There is no chart library behind it. A month grid is a CSS grid, the cells are
+the app's pockets, and every theme prints it for free.
+
 ### Themes
 
 Nine themes ship, and they are presses rather than tints. Every one prints the same
@@ -217,6 +232,7 @@ stops at 29 Sep, because that is the last day it actually asks anything of you.
 src/lib/dates.ts       date keys, the 3am rollover, half-open course ends
 src/lib/slots.ts       the seven slots and their fixed order
 src/lib/weekdays.ts    ISO weekdays, Monday first, and the every-day normal form
+src/lib/calendar.ts    month layout and how full a day draws — pure
 src/lib/schedule.ts    versions, dose days, adherence — all pure
 src/lib/store.ts       localStorage plus the mutations, the only stateful module
 src/lib/feedback.ts    whether and how a press answers back
