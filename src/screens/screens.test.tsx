@@ -8,6 +8,7 @@ import { MedicineForm } from '@/screens/MedicineForm'
 import { MedicineHistory } from '@/screens/MedicineHistory'
 import { Medicines } from '@/screens/Medicines'
 import { shiftKey, today } from '@/lib/dates'
+import { WEEKDAYS, weekdayOf } from '@/lib/weekdays'
 import { loadExamples } from '@/lib/examples'
 import { courseStatus, groupMedicines } from '@/lib/schedule'
 import { addMedicine, deleteMedicine, getDatabase, importDatabase, setDose, stopMedicine } from '@/lib/store'
@@ -22,6 +23,14 @@ function at(path: string, element: React.ReactNode, pattern: string) {
       </Routes>
     </MemoryRouter>,
   )
+}
+
+/** Weekly is a week with one day left on, so it is six presses on the others. */
+async function keepOnly(user: ReturnType<typeof userEvent.setup>, date: string) {
+  const keep = weekdayOf(date)
+  for (const day of WEEKDAYS) {
+    if (day.id !== keep) await user.click(screen.getByRole('button', { name: day.label }))
+  }
 }
 
 /** The Archive is folded until asked for, so anything in it takes a press first. */
@@ -369,7 +378,7 @@ describe('the medicine form', () => {
 
     await user.type(screen.getByLabelText('Name'), 'Vitamin B12')
     await user.click(screen.getByRole('button', { name: /^Anytime/ }))
-    await user.click(screen.getByRole('radio', { name: 'Weekly' }))
+    await keepOnly(user, now)
     const duration = screen.getByLabelText('Runs for')
     await user.clear(duration)
     await user.type(duration, '35')
@@ -488,7 +497,10 @@ describe('the medicine form', () => {
     expect(value('Note')).toBe('With food')
     expect(screen.getByRole('button', { name: 'After breakfast' }).getAttribute('data-state')).toBe('on')
     expect(screen.getByRole('button', { name: 'After dinner' }).getAttribute('data-state')).toBe('on')
-    expect(screen.getByRole('radio', { name: 'Daily' }).getAttribute('data-state')).toBe('on')
+    expect(screen.getByRole('radio', { name: 'Days of the week' }).getAttribute('data-state')).toBe('on')
+    for (const day of WEEKDAYS) {
+      expect(screen.getByRole('button', { name: day.label }).getAttribute('data-state')).toBe('on')
+    }
     expect(value('Runs for')).toBe('14')
     // The one field that is not carried over. A repeat prescription starts when
     // the pharmacy hands it over.
@@ -540,6 +552,72 @@ describe('the medicine form', () => {
 })
 
 
+describe('the medicine form, repeating on chosen days', () => {
+  it('starts with every day of the week on, so daily costs no presses', () => {
+    at('/medicines/new', <MedicineForm />, '/medicines/new')
+    for (const day of WEEKDAYS) {
+      expect(screen.getByRole('button', { name: day.label }).getAttribute('data-state')).toBe('on')
+    }
+    expect(screen.getByText('Daily. Turn off the days it does not apply to.')).toBeTruthy()
+  })
+
+  it('drops the dose count when a day is turned off, and names the shape', async () => {
+    const user = userEvent.setup()
+    at('/medicines/new', <MedicineForm />, '/medicines/new')
+    await user.type(screen.getByLabelText('Name'), 'Vitamin D Plus')
+    await user.click(screen.getByRole('button', { name: 'After lunch' }))
+    const duration = screen.getByLabelText('Runs for')
+    await user.clear(duration)
+    await user.type(duration, '14')
+    expect(screen.getByText('14 doses across 14 days')).toBeTruthy()
+
+    await user.click(screen.getByRole('button', { name: 'Tuesday' }))
+    expect(screen.getByText('12 doses across 12 days')).toBeTruthy()
+    expect(screen.getAllByText('Daily except Tue').length).toBeGreaterThan(0)
+  })
+
+  it('refuses a week with no days on, and says so', async () => {
+    const user = userEvent.setup()
+    at('/medicines/new', <MedicineForm />, '/medicines/new')
+    await user.type(screen.getByLabelText('Name'), 'Vitamin D Plus')
+    await user.click(screen.getByRole('button', { name: 'After lunch' }))
+    for (const day of WEEKDAYS) await user.click(screen.getByRole('button', { name: day.label }))
+
+    expect((screen.getByRole('button', { name: 'Add medicine' }) as HTMLButtonElement).disabled).toBe(true)
+    expect(screen.getByText('Needs at least one day of the week.')).toBeTruthy()
+  })
+
+  it('says when the first dose is, if the start date is not a dose day', async () => {
+    const user = userEvent.setup()
+    at('/medicines/new', <MedicineForm />, '/medicines/new')
+    await user.type(screen.getByLabelText('Name'), 'Alendronate')
+    await user.click(screen.getByRole('button', { name: 'Before breakfast' }))
+    // Leave only the day after today on, so today cannot be a dose day.
+    await keepOnly(user, shiftKey(now, 1))
+
+    expect(screen.getByText(/^First dose /)).toBeTruthy()
+    expect(screen.getByText('1 dose across 1 day')).toBeTruthy()
+  })
+
+  it('opens a weekly course saved before weekdays existed with its one day on', () => {
+    const id = addMedicine({
+      name: 'Vitamin B12',
+      slots: ['anytime'],
+      repeatEveryDays: 7,
+      anchorDate: now,
+      durationValue: 5,
+      durationUnit: 'weeks',
+    })
+    at(`/medicines/${id}/edit`, <MedicineForm />, '/medicines/:groupId/edit')
+
+    const on = WEEKDAYS.filter((d) => screen.getByRole('button', { name: d.label }).getAttribute('data-state') === 'on')
+    expect(on.map((d) => d.id)).toEqual([weekdayOf(now)])
+    expect(screen.getByText('5 doses across 5 days')).toBeTruthy()
+    // Nothing moved, so nothing is going to fork.
+    expect(screen.queryByText(/takes effect from today/)).toBeNull()
+  })
+})
+
 describe('the History screens', () => {
   it('counts taken, skipped and missed against the whole course', () => {
     const id = addMedicine({
@@ -582,6 +660,77 @@ describe('the History screens', () => {
     expect(within(days[1]).getByText('Yesterday')).toBeTruthy()
     expect(within(days[1]).getByText('Missed')).toBeTruthy()
     expect(within(days[2]).getByText('Missed')).toBeTruthy()
+  })
+})
+
+describe('the month grid in History', () => {
+  function magnesium(startOffset: number, days: number) {
+    return addMedicine({
+      name: 'Magnesium 250MG',
+      slots: ['after-dinner'],
+      repeatEveryDays: 1,
+      anchorDate: shiftKey(now, startOffset),
+      durationValue: days,
+      durationUnit: 'days',
+    })
+  }
+
+  it('draws this month, with a cell for every day and the tally for what was answered', () => {
+    const id = magnesium(-2, 5)
+    setDose(id, shiftKey(now, -2), 'after-dinner', 'taken')
+    setDose(id, shiftKey(now, -1), 'after-dinner', 'skipped')
+
+    at('/history', <History />, '/history')
+    const grid = screen.getByRole('region', { name: 'Calendar' })
+    const monthDays = new Date(Number(now.slice(0, 4)), Number(now.slice(5, 7)), 0).getDate()
+    expect(within(grid).getAllByRole('img').length + within(grid).getAllByRole('button').length).toBe(monthDays + 2)
+    // A skip is a decision, not a lapse, so it is not in the denominator.
+    expect(within(grid).getByText('1 of 1 taken')).toBeTruthy()
+  })
+
+  it('opens a day that has anything behind it, and not one that does not', async () => {
+    const user = userEvent.setup()
+    const id = magnesium(-1, 5)
+    setDose(id, shiftKey(now, -1), 'after-dinner', 'taken')
+    at('/history', <History />, '/history')
+    const grid = screen.getByRole('region', { name: 'Calendar' })
+
+    // Today and after are scheduled but only pending, so none of them is a button.
+    const pending = within(grid).getAllByLabelText(/1 due of 1$/)
+    expect(pending.length).toBeGreaterThan(0)
+    for (const cell of pending) expect(cell.tagName).toBe('SPAN')
+
+    await user.click(within(grid).getByRole('button', { name: /1 taken of 1$/ }))
+    const sheet = screen.getByRole('dialog')
+    expect(within(sheet).getByText('Magnesium 250MG')).toBeTruthy()
+    expect(within(sheet).getByText(/^Taken /)).toBeTruthy()
+  })
+
+  it('stops at the first and last month a course touches', async () => {
+    const user = userEvent.setup()
+    magnesium(-40, 41)
+    at('/history', <History />, '/history')
+    const grid = screen.getByRole('region', { name: 'Calendar' })
+
+    const next = within(grid).getByRole('button', { name: 'Next month' }) as HTMLButtonElement
+    const prev = within(grid).getByRole('button', { name: 'Previous month' }) as HTMLButtonElement
+    expect(next.disabled).toBe(true)
+    expect(prev.disabled).toBe(false)
+    await user.click(prev)
+    if (!prev.disabled) await user.click(prev)
+    expect(prev.disabled).toBe(true)
+  })
+
+  it('shows a course its own month on the medicine page', () => {
+    const id = magnesium(-2, 3)
+    setDose(id, now, 'after-dinner', 'taken')
+    const groupId = groupMedicines(getDatabase().medicines)[0].groupId
+    at(`/history/${groupId}`, <MedicineHistory />, '/history/:groupId')
+
+    const grid = screen.getByRole('region', { name: 'Calendar' })
+    expect(within(grid).getByText('1 of 3 taken')).toBeTruthy()
+    // The day list underneath is untouched by the grid's cells.
+    expect(screen.getAllByRole('listitem')).toHaveLength(3)
   })
 })
 

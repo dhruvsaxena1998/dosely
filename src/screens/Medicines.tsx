@@ -303,7 +303,7 @@ function MedicineCard({
       <MetaLine
         className="mt-1"
         parts={[
-          describeRepeat(m.repeatEveryDays),
+          describeRepeat(m),
           describeDuration(m.durationValue, m.durationUnit),
           describeGroupSpan(group),
         ]}

@@ -14,7 +14,9 @@ import {
   stopMedicine,
   updateMedicine,
 } from '@/lib/store'
+import type { Weekday } from '@/lib/weekdays'
 import type { MedicineInput } from '@/types'
+import { getISODay } from 'date-fns'
 
 const now = today()
 
@@ -53,6 +55,17 @@ describe('editing', () => {
     updateMedicine(id, { ...calcium, name: 'Calcium with D3 500' })
     expect(records(id)).toHaveLength(1)
     expect(records(id)[0].name).toBe('Calcium with D3 500')
+  })
+
+  it('does not fork a weekly course rewritten as one weekday, because nothing moved', () => {
+    const weekly: MedicineInput = { ...calcium, name: 'Vitamin B12', repeatEveryDays: 7, slots: ['anytime'] }
+    const id = addMedicine(weekly)
+    const day = getISODay(new Date(`${weekly.anchorDate}T00:00:00`)) as Weekday
+    updateMedicine(id, { ...weekly, repeatEveryDays: 1, weekdays: [day] })
+    expect(records(id)).toHaveLength(1)
+    // But moving it to a different day does.
+    updateMedicine(id, { ...weekly, repeatEveryDays: 1, weekdays: [((day % 7) + 1) as Weekday] })
+    expect(records(id)).toHaveLength(2)
   })
 
   it('forks from today when the slots change', () => {

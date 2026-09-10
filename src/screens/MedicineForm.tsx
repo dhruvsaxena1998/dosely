@@ -8,16 +8,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import type { DurationUnit } from '@/lib/dates'
-import { courseEndFrom, daysBetween, isValidKey, useToday } from '@/lib/dates'
-import { describeDuration, describeSpan } from '@/lib/describe'
-import { doseHistory, groupMedicines } from '@/lib/schedule'
+import { courseEndFrom, daysBetween, formatDay, isValidKey, useToday } from '@/lib/dates'
+import { describeDuration, describeRepeat, describeSpan, sentenceList } from '@/lib/describe'
+import { doseHistory, groupMedicines, sameSchedule } from '@/lib/schedule'
 import { SLOTS, type SlotId } from '@/lib/slots'
+import { EVERY_DAY, WEEKDAYS, isEveryDay, normalizeWeekdays, weekdayOf, type Weekday } from '@/lib/weekdays'
 import { addMedicine, updateMedicine, useDatabase } from '@/lib/store'
 import { TOGGLE_ITEM } from '@/lib/ui'
 import type { MedicineInput, MedicineRecord } from '@/types'
 import { cn } from '@/lib/utils'
 
-type RepeatMode = 'daily' | 'weekly' | 'custom'
+/** Days of the week, the way an alarm is set, or a plain interval. Never both. */
+type RepeatMode = 'weekdays' | 'custom'
 
 /**
  * The slot sets a prescription actually names. They fill rather than select,
@@ -43,15 +45,16 @@ function durationKey(value: number, unit: DurationUnit): string {
   return `${value}-${unit}`
 }
 
-function repeatModeOf(days: number): RepeatMode {
-  if (days === 1) return 'daily'
-  if (days === 7) return 'weekly'
-  return 'custom'
-}
-
-function sentenceList(parts: string[]): string {
-  if (parts.length < 2) return parts.join('')
-  return `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`
+/**
+ * How an existing record opens in the picker. Weekly was a mode of its own once;
+ * it is now the day the anchor falls on, ticked alone, which is what it always
+ * meant.
+ */
+function repeatOf(m: MedicineRecord | undefined): { mode: RepeatMode; weekdays: Weekday[] } {
+  if (!m) return { mode: 'weekdays', weekdays: [...EVERY_DAY] }
+  if (m.repeatEveryDays === 7 && !m.weekdays) return { mode: 'weekdays', weekdays: [weekdayOf(m.anchorDate)] }
+  if (m.repeatEveryDays === 1) return { mode: 'weekdays', weekdays: m.weekdays ?? [...EVERY_DAY] }
+  return { mode: 'custom', weekdays: [...EVERY_DAY] }
 }
 
 export function MedicineForm() {
@@ -81,8 +84,11 @@ export function MedicineForm() {
   const [note, setNote] = useState(source?.note ?? '')
   const [noteOpen, setNoteOpen] = useState(Boolean(source?.note))
   const [slots, setSlots] = useState<SlotId[]>(source?.slots ?? [])
-  const [repeatMode, setRepeatMode] = useState<RepeatMode>(repeatModeOf(source?.repeatEveryDays ?? 1))
-  const [customRepeat, setCustomRepeat] = useState(String(source?.repeatEveryDays ?? 2))
+  const [repeatMode, setRepeatMode] = useState<RepeatMode>(() => repeatOf(source).mode)
+  const [weekdays, setWeekdays] = useState<Weekday[]>(() => repeatOf(source).weekdays)
+  const [customRepeat, setCustomRepeat] = useState(
+    String(source && source.repeatEveryDays > 1 && source.repeatEveryDays !== 7 ? source.repeatEveryDays : 2),
+  )
   // The one field a repeat prescription must not inherit. It starts the day the
   // pharmacy hands it over, not the day the original course began.
   const [startDate, setStartDate] = useState(editing?.anchorDate ?? now)
@@ -90,20 +96,26 @@ export function MedicineForm() {
   const [durationUnit, setDurationUnit] = useState<DurationUnit>(source?.durationUnit ?? 'days')
   const [added, setAdded] = useState<string>()
 
-  const repeatEveryDays =
-    repeatMode === 'daily' ? 1 : repeatMode === 'weekly' ? 7 : Math.max(1, Number(customRepeat) || 1)
+  const repeatEveryDays = repeatMode === 'weekdays' ? 1 : Math.max(1, Number(customRepeat) || 1)
+  const repeatDays = repeatMode === 'weekdays' ? normalizeWeekdays(weekdays) : undefined
+  const everyDay = repeatMode === 'weekdays' && isEveryDay(weekdays)
   const duration = Math.max(1, Number(durationValue) || 0)
 
   const missing: string[] = []
   if (name.trim().length === 0) missing.push('a name')
   if (slots.length === 0) missing.push('at least one slot')
+  if (repeatMode === 'weekdays' && weekdays.length === 0) missing.push('at least one day of the week')
   if (!isValidKey(startDate)) missing.push('a start date')
   if (!(Number(durationValue) >= 1)) missing.push('how long it runs')
   const valid = missing.length === 0
 
   // The name has nothing to do with the schedule, so the schedule shows without
   // it. Naming the medicine is the one thing the user never needs telling.
-  const scheduled = slots.length > 0 && isValidKey(startDate) && Number(durationValue) >= 1
+  const scheduled =
+    slots.length > 0 &&
+    isValidKey(startDate) &&
+    Number(durationValue) >= 1 &&
+    (repeatMode !== 'weekdays' || weekdays.length > 0)
 
   const preview = useMemo(() => {
     if (!scheduled) return undefined
@@ -113,6 +125,7 @@ export function MedicineForm() {
       name: 'preview',
       slots,
       repeatEveryDays,
+      weekdays: repeatDays,
       anchorDate: startDate,
       durationValue: duration,
       durationUnit,
@@ -121,11 +134,16 @@ export function MedicineForm() {
     }
     const doses = doseHistory(groupMedicines([provisional])[0])
     const days = new Set(doses.map((d) => d.date)).size
+    // A start date on a day the medicine does not fall on is a real prescription
+    // date with a later first dose, so the preview says which day that is.
+    const first = doses[0]?.date
     return {
       summary: `${doses.length} ${doses.length === 1 ? 'dose' : 'doses'} across ${days} ${days === 1 ? 'day' : 'days'}`,
       span: describeSpan(startDate, courseEndFrom(startDate, duration, durationUnit)),
+      firstDose: first && first !== startDate ? formatDay(first) : undefined,
+      repeat: describeRepeat({ repeatEveryDays, weekdays: repeatDays }),
     }
-  }, [scheduled, slots, repeatEveryDays, startDate, duration, durationUnit])
+  }, [scheduled, slots, repeatEveryDays, repeatDays, startDate, duration, durationUnit])
 
   /** Same name as a course that already exists. Worth saying, not worth blocking. */
   const twin = useMemo(() => {
@@ -158,12 +176,14 @@ export function MedicineForm() {
   const willFork = Boolean(
     editing &&
       editing.effectiveFrom < now &&
-      (editing.repeatEveryDays !== repeatEveryDays ||
-        editing.anchorDate !== startDate ||
-        editing.durationValue !== duration ||
-        editing.durationUnit !== durationUnit ||
-        editing.slots.length !== slots.length ||
-        editing.slots.some((s) => !slots.includes(s))),
+      !sameSchedule(editing, {
+        slots,
+        repeatEveryDays,
+        weekdays: repeatDays,
+        anchorDate: startDate,
+        durationValue: duration,
+        durationUnit,
+      }),
   )
 
   function save(andAnother = false) {
@@ -173,6 +193,7 @@ export function MedicineForm() {
       note: note.trim() || undefined,
       slots,
       repeatEveryDays,
+      weekdays: repeatDays,
       anchorDate: startDate,
       durationValue: duration,
       durationUnit,
@@ -286,7 +307,7 @@ export function MedicineForm() {
                           "whenever, as often as you like". */}
                       {slot.id === 'anytime' ? (
                         <span className="ml-auto text-[11px] font-normal text-muted-foreground">
-                          {repeatEveryDays === 1 ? 'once a day' : 'once a dose day'}
+                          {everyDay ? 'once a day' : 'once a dose day'}
                         </span>
                       ) : null}
                     </ToggleGroupItem>
@@ -305,12 +326,42 @@ export function MedicineForm() {
                   value={repeatMode}
                   onValueChange={(value) => value && setRepeatMode(value as RepeatMode)}
                   variant="outline"
-                  className="grid w-full grid-cols-3 gap-2"
+                  className="grid w-full grid-cols-2 gap-2"
                 >
-                  <ToggleGroupItem value="daily" className={TOGGLE_ITEM}>Daily</ToggleGroupItem>
-                  <ToggleGroupItem value="weekly" className={TOGGLE_ITEM}>Weekly</ToggleGroupItem>
+                  <ToggleGroupItem value="weekdays" className={TOGGLE_ITEM}>Days of the week</ToggleGroupItem>
                   <ToggleGroupItem value="custom" className={TOGGLE_ITEM}>Every N days</ToggleGroupItem>
                 </ToggleGroup>
+                {repeatMode === 'weekdays' ? (
+                  <>
+                    {/* Set like an alarm: every day is on until you turn one off,
+                        so the common case costs nothing and an exception is one
+                        press on the day it applies to. */}
+                    <ToggleGroup
+                      type="multiple"
+                      value={weekdays.map(String)}
+                      onValueChange={(value) => setWeekdays(value.map(Number) as Weekday[])}
+                      variant="outline"
+                      aria-label="Days of the week"
+                      className="grid w-full grid-cols-7 gap-1.5"
+                    >
+                      {WEEKDAYS.map((day) => (
+                        <ToggleGroupItem
+                          key={day.id}
+                          value={String(day.id)}
+                          aria-label={day.label}
+                          className={cn('min-w-0 px-0 text-[11px]', TOGGLE_ITEM)}
+                        >
+                          {day.short}
+                        </ToggleGroupItem>
+                      ))}
+                    </ToggleGroup>
+                    <p className="text-xs text-muted-foreground">
+                      {weekdays.length === 0
+                        ? 'Pick at least one day.'
+                        : `${describeRepeat({ repeatEveryDays: 1, weekdays: normalizeWeekdays(weekdays) })}. Turn off the days it does not apply to.`}
+                    </p>
+                  </>
+                ) : null}
                 {repeatMode === 'custom' ? (
                   <div className="flex items-center gap-2 pt-1">
                     <Input
@@ -411,7 +462,12 @@ export function MedicineForm() {
                 {preview ? (
                   <>
                     <p className="type-data text-sm font-medium uppercase tracking-[0.04em]">{preview.span}</p>
-                    <p className="type-data mt-1 text-[11px] text-muted-foreground">{preview.summary}</p>
+                    <p className="type-data mt-1 text-[11px] text-muted-foreground">
+                      <span>{preview.repeat}</span> · <span>{preview.summary}</span>
+                    </p>
+                    {preview.firstDose ? (
+                      <p className="type-data mt-1 text-[11px] text-muted-foreground">First dose {preview.firstDose}</p>
+                    ) : null}
                   </>
                 ) : (
                   <p className="text-xs leading-relaxed text-muted-foreground">

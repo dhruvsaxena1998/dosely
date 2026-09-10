@@ -2,7 +2,7 @@ import { useSyncExternalStore } from 'react'
 import type { DateKey } from '@/lib/dates'
 import { maxKey, today } from '@/lib/dates'
 import type { SlotId } from '@/lib/slots'
-import { canResume, closureOf, groupMedicines, logKey, recordWindow } from '@/lib/schedule'
+import { canResume, closureOf, groupMedicines, logKey, recordWindow, sameSchedule } from '@/lib/schedule'
 import type { Database, DoseState, MedicineInput, MedicineRecord } from '@/types'
 
 const STORAGE_KEY = 'dosely.db.v1'
@@ -77,14 +77,7 @@ export function addMedicine(input: MedicineInput): string {
 }
 
 function scheduleChanged(a: MedicineRecord, b: MedicineInput): boolean {
-  return (
-    a.repeatEveryDays !== b.repeatEveryDays ||
-    a.anchorDate !== b.anchorDate ||
-    a.durationValue !== b.durationValue ||
-    a.durationUnit !== b.durationUnit ||
-    a.slots.length !== b.slots.length ||
-    a.slots.some((s) => !b.slots.includes(s))
-  )
+  return !sameSchedule(a, b)
 }
 
 /**
