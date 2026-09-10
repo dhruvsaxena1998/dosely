@@ -237,9 +237,22 @@ export interface Dose {
  * day with no entry are missed; on today or later they are still pending.
  */
 export function dosesOn(db: Database, date: DateKey, ref: DateKey = today()): Dose[] {
+  return dosesOnFor(
+    db,
+    groupMedicines(db.medicines).filter((g) => !isDeleted(g)),
+    date,
+    ref,
+  )
+}
+
+/**
+ * The same, over a chosen set of medicines. Today hides what was deleted;
+ * History does not, because a dose taken is a dose taken whatever happened to
+ * the course afterwards. Which set to read is the caller's call.
+ */
+export function dosesOnFor(db: Database, groups: readonly MedicineGroup[], date: DateKey, ref: DateKey = today()): Dose[] {
   const doses: Dose[] = []
-  for (const g of groupMedicines(db.medicines)) {
-    if (isDeleted(g)) continue
+  for (const g of groups) {
     const record = recordForDate(g, date)
     if (!record || !isDoseDay(record, date)) continue
     for (const slot of sortSlots(record.slots)) {
@@ -256,6 +269,49 @@ export function dosesOn(db: Database, date: DateKey, ref: DateKey = today()): Do
     }
   }
   return doses
+}
+
+/** One day's doses across a set of medicines, counted by what became of them. */
+export interface DayTally {
+  scheduled: number
+  taken: number
+  skipped: number
+  missed: number
+  pending: number
+}
+
+/**
+ * Every day in `[from, to)` that any of the groups schedules something on,
+ * tallied. Days with nothing scheduled are left out, so a lookup that misses
+ * means a blank cell.
+ */
+export function dayTallies(
+  db: Database,
+  groups: readonly MedicineGroup[],
+  from: DateKey,
+  to: DateKey,
+  ref: DateKey = today(),
+): Map<DateKey, DayTally> {
+  const out = new Map<DateKey, DayTally>()
+  for (const g of groups) {
+    const span = groupSpan(g)
+    const start = maxKey(from, span.start)
+    const end = minKey(to, span.end)
+    for (let cursor = start; cursor < end; cursor = shiftKey(cursor, 1)) {
+      const slots = scheduledSlotsOn(g, cursor)
+      if (slots.length === 0) continue
+      const tally = out.get(cursor) ?? { scheduled: 0, taken: 0, skipped: 0, missed: 0, pending: 0 }
+      for (const slot of slots) {
+        tally.scheduled += 1
+        const entry = lookupDose(db, g.groupId, cursor, slot)
+        if (entry) tally[entry.state] += 1
+        else if (cursor < ref) tally.missed += 1
+        else tally.pending += 1
+      }
+      out.set(cursor, tally)
+    }
+  }
+  return out
 }
 
 export interface Adherence {

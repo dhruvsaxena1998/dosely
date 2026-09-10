@@ -1,14 +1,17 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ChevronLeft } from 'lucide-react'
 import { AdherenceBar } from '@/components/AdherenceBar'
+import { DaySheet } from '@/components/DaySheet'
 import { MetaLine } from '@/components/MetaLine'
+import { MonthGrid } from '@/components/MonthGrid'
 import { Button } from '@/components/ui/button'
-import { formatDay, formatTime, nearDayLabel, useToday } from '@/lib/dates'
+import type { DateKey } from '@/lib/dates'
+import { formatDay, formatTime, nearDayLabel, shiftKey, useToday } from '@/lib/dates'
 import { describeDuration, describeGroupSpan, describeRepeat } from '@/lib/describe'
 import { OUTCOME_CHIP, OUTCOME_LABEL } from '@/lib/outcome'
 import type { DoseOutcome } from '@/lib/schedule'
-import { adherenceFor, doseHistory, groupMedicines, lookupDose } from '@/lib/schedule'
+import { adherenceFor, dayTallies, doseHistory, dosesOnFor, groupMedicines, groupSpan, lookupDose } from '@/lib/schedule'
 import { slotLabel, type SlotId } from '@/lib/slots'
 import { useDatabase } from '@/lib/store'
 import { cn } from '@/lib/utils'
@@ -37,6 +40,17 @@ export function MedicineHistory() {
     }
     return [...byDate.entries()].sort((a, b) => (a[0] < b[0] ? 1 : -1))
   }, [db, group, now])
+
+  const span = useMemo(() => (group ? groupSpan(group) : undefined), [group])
+  const cells = useMemo(
+    () => (group && span ? dayTallies(db, [group], span.start, span.end, now) : new Map()),
+    [db, group, span, now],
+  )
+  const [picked, setPicked] = useState<DateKey>()
+  const pickedDoses = useMemo(
+    () => (group && picked ? dosesOnFor(db, [group], picked, now) : []),
+    [db, group, picked, now],
+  )
 
   if (!group) {
     return (
@@ -82,6 +96,13 @@ export function MedicineHistory() {
             <Stat label="Missed" value={tally.missed} className="text-muted-foreground" />
             <Stat label="Left" value={tally.pending} className="text-muted-foreground" />
           </div>
+
+          {span ? (
+            <div className="mt-4">
+              <MonthGrid days={cells} first={span.start} last={shiftKey(span.end, -1)} today={now} onPick={setPicked} />
+            </div>
+          ) : null}
+          <DaySheet date={picked} doses={pickedDoses} onClose={() => setPicked(undefined)} />
 
           <ul className="mt-7 space-y-1.5">
             {days.map(([date, items]) => (

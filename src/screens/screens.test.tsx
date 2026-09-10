@@ -636,6 +636,77 @@ describe('the History screens', () => {
   })
 })
 
+describe('the month grid in History', () => {
+  function magnesium(startOffset: number, days: number) {
+    return addMedicine({
+      name: 'Magnesium 250MG',
+      slots: ['after-dinner'],
+      repeatEveryDays: 1,
+      anchorDate: shiftKey(now, startOffset),
+      durationValue: days,
+      durationUnit: 'days',
+    })
+  }
+
+  it('draws this month, with a cell for every day and the tally for what was answered', () => {
+    const id = magnesium(-2, 5)
+    setDose(id, shiftKey(now, -2), 'after-dinner', 'taken')
+    setDose(id, shiftKey(now, -1), 'after-dinner', 'skipped')
+
+    at('/history', <History />, '/history')
+    const grid = screen.getByRole('region', { name: 'Calendar' })
+    const monthDays = new Date(Number(now.slice(0, 4)), Number(now.slice(5, 7)), 0).getDate()
+    expect(within(grid).getAllByRole('img').length + within(grid).getAllByRole('button').length).toBe(monthDays + 2)
+    // A skip is a decision, not a lapse, so it is not in the denominator.
+    expect(within(grid).getByText('1 of 1 taken')).toBeTruthy()
+  })
+
+  it('opens a day that has anything behind it, and not one that does not', async () => {
+    const user = userEvent.setup()
+    const id = magnesium(-1, 5)
+    setDose(id, shiftKey(now, -1), 'after-dinner', 'taken')
+    at('/history', <History />, '/history')
+    const grid = screen.getByRole('region', { name: 'Calendar' })
+
+    // Today and after are scheduled but only pending, so none of them is a button.
+    const pending = within(grid).getAllByLabelText(/1 due of 1$/)
+    expect(pending.length).toBeGreaterThan(0)
+    for (const cell of pending) expect(cell.tagName).toBe('SPAN')
+
+    await user.click(within(grid).getByRole('button', { name: /1 taken of 1$/ }))
+    const sheet = screen.getByRole('dialog')
+    expect(within(sheet).getByText('Magnesium 250MG')).toBeTruthy()
+    expect(within(sheet).getByText(/^Taken /)).toBeTruthy()
+  })
+
+  it('stops at the first and last month a course touches', async () => {
+    const user = userEvent.setup()
+    magnesium(-40, 41)
+    at('/history', <History />, '/history')
+    const grid = screen.getByRole('region', { name: 'Calendar' })
+
+    const next = within(grid).getByRole('button', { name: 'Next month' }) as HTMLButtonElement
+    const prev = within(grid).getByRole('button', { name: 'Previous month' }) as HTMLButtonElement
+    expect(next.disabled).toBe(true)
+    expect(prev.disabled).toBe(false)
+    await user.click(prev)
+    if (!prev.disabled) await user.click(prev)
+    expect(prev.disabled).toBe(true)
+  })
+
+  it('shows a course its own month on the medicine page', () => {
+    const id = magnesium(-2, 3)
+    setDose(id, now, 'after-dinner', 'taken')
+    const groupId = groupMedicines(getDatabase().medicines)[0].groupId
+    at(`/history/${groupId}`, <MedicineHistory />, '/history/:groupId')
+
+    const grid = screen.getByRole('region', { name: 'Calendar' })
+    expect(within(grid).getByText('1 of 3 taken')).toBeTruthy()
+    // The day list underneath is untouched by the grid's cells.
+    expect(screen.getAllByRole('listitem')).toHaveLength(3)
+  })
+})
+
 describe('the app shell', () => {
   it('moves between the three tabs', async () => {
     const user = userEvent.setup()
