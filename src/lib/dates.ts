@@ -13,8 +13,16 @@ export type DurationUnit = 'days' | 'weeks' | 'months'
  */
 export const DAY_ROLLOVER_HOUR = 3
 
-/** How many days back from today the Today screen lets you tick a dose. */
-export const BACKFILL_DAYS = 3
+/**
+ * How many days back from today the Today screen lets you tick a dose.
+ *
+ * A locked past is what makes the log worth trusting, so there is a limit at
+ * all. Where it sits is a guess about how long you can go without opening the
+ * app, and three days was the wrong guess: a long weekend away put the record
+ * beyond correcting, which is the one thing worse than a gap in it. A fortnight
+ * covers a trip and still refuses to let last month be rewritten from memory.
+ */
+export const BACKFILL_DAYS = 14
 
 export function toKey(date: Date): DateKey {
   return format(date, 'yyyy-MM-dd')

@@ -4,6 +4,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { History } from '@/screens/History'
 import { Medicines } from '@/screens/Medicines'
 import { Today } from '@/screens/Today'
+import { BACKFILL_DAYS, formatWithYear, shiftKey } from '@/lib/dates'
 import { addMedicine, getDatabase, importDatabase } from '@/lib/store'
 
 /**
@@ -152,16 +153,18 @@ describe('the day rolling over under the Today screen', () => {
     daily('Metformin 500MG', '2026-05-25')
     renderToday()
 
+    // Walked all the way to the floor, wherever the backfill window puts it.
+    const floor = shiftKey(MONDAY, -BACKFILL_DAYS)
     const back = screen.getByRole('button', { name: /previous day/i })
-    for (let i = 0; i < 3; i += 1) fireEvent.click(back)
-    expect(within(header()).getByText('29 May 2026')).toBeTruthy()
+    for (let i = 0; i < BACKFILL_DAYS; i += 1) fireEvent.click(back)
+    expect(within(header()).getByText(formatWithYear(floor))).toBeTruthy()
     expect(back.hasAttribute('disabled')).toBe(true)
 
     timePasses(6)
 
-    // The backfill floor rolled forward with the day, so 29 May is now out of
-    // reach and the screen is on the oldest day it is still allowed to edit.
-    expect(within(header()).getByText('30 May 2026')).toBeTruthy()
+    // The floor rolled forward with the day, so the day they were sitting on is
+    // now out of reach and the screen is on the oldest one it may still edit.
+    expect(within(header()).getByText(formatWithYear(shiftKey(floor, 1)))).toBeTruthy()
     expect(screen.getByRole('button', { name: /previous day/i }).hasAttribute('disabled')).toBe(true)
   })
 

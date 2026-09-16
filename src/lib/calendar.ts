@@ -1,7 +1,7 @@
 import { addMonths, format, startOfMonth } from 'date-fns'
 import type { DateKey } from '@/lib/dates'
 import { fromKey, shiftKey, toKey } from '@/lib/dates'
-import type { DayTally } from '@/lib/schedule'
+import type { Adherence, DayTally } from '@/lib/schedule'
 import { weekdayOf } from '@/lib/weekdays'
 
 /** A calendar month as `YYYY-MM`. */
@@ -66,6 +66,16 @@ export function dayFill(t: DayTally): DayFill {
   if (t.taken === 0) return 'missed'
   if (t.taken === answered) return 'full'
   return t.taken * 2 >= answered ? 'high' : 'low'
+}
+
+/**
+ * The same four steps read over a whole course rather than a day, which is what
+ * the pocket on a medicine card draws. One tally is the other with a different
+ * word for the total, so the rule is not restated here: a course that has gone
+ * well is the same fill as a day that went well, and it always will be.
+ */
+export function courseFill(a: Adherence): DayFill {
+  return dayFill({ ...a, scheduled: a.total })
 }
 
 /** Whether a cell has anything behind it worth opening. */

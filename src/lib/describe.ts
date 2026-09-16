@@ -1,6 +1,6 @@
 import type { DurationUnit } from '@/lib/dates'
 import { formatShort, formatWithYear, shiftKey } from '@/lib/dates'
-import type { MedicineGroup } from '@/lib/schedule'
+import type { Adherence, MedicineGroup } from '@/lib/schedule'
 import { groupSpan } from '@/lib/schedule'
 import type { Weekday } from '@/lib/weekdays'
 import { WEEKDAYS, isEveryDay, sortWeekdays, weekdayShort } from '@/lib/weekdays'
@@ -50,4 +50,22 @@ export function describeSpan(start: string, endExclusive: string): string {
 export function describeGroupSpan(g: MedicineGroup): string {
   const { start, end } = groupSpan(g)
   return describeSpan(start, end)
+}
+
+/**
+ * What became of a set of doses, in words. The month grid's cells and the
+ * medicine list's pockets are both drawn from a tally and neither has room to
+ * print one, so this is the only thing a screen reader gets and it says the
+ * whole count rather than the fill it was reduced to.
+ *
+ * A count of nothing is left out, so a course with no skips never mentions
+ * skipping.
+ */
+export function describeTally(t: Adherence): string {
+  const parts: string[] = []
+  if (t.taken) parts.push(`${t.taken} taken`)
+  if (t.skipped) parts.push(`${t.skipped} skipped`)
+  if (t.missed) parts.push(`${t.missed} missed`)
+  if (t.pending) parts.push(`${t.pending} due`)
+  return `${parts.join(', ')} of ${t.total}`
 }

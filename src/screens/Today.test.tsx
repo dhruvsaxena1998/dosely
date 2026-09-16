@@ -3,7 +3,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { Today } from '@/screens/Today'
-import { formatWithYear, shiftKey, today } from '@/lib/dates'
+import { BACKFILL_DAYS, formatWithYear, shiftKey, today } from '@/lib/dates'
 import { loadExamples } from '@/lib/examples'
 import { addMedicine, getDatabase, importDatabase } from '@/lib/store'
 
@@ -83,7 +83,7 @@ describe('the Today screen', () => {
     renderToday()
 
     const back = screen.getByRole('button', { name: /previous day/i })
-    for (let i = 0; i < 3; i += 1) {
+    for (let i = 0; i < BACKFILL_DAYS; i += 1) {
       expect(back.hasAttribute('disabled')).toBe(false)
       await user.click(back)
     }

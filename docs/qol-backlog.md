@@ -82,9 +82,12 @@ it produces no rows, so there is no way to record having taken one.
 times, no renaming. A night shift gets a list ordered around someone else's
 breakfast.
 
-**12. Backfill is hardcoded to three days.** `BACKFILL_DAYS` has no setting and
-no override. Back from a four-day trip, the record is wrong and cannot be
-corrected — not from Today, not from the medicine's own history screen.
+**12. Backfill is hardcoded.** _(Half done.)_ `BACKFILL_DAYS` was three days,
+which put a long weekend away beyond correcting; it is now fourteen, which
+covers a trip. The constant still has no setting and no override, so the shape
+of the gap is unchanged and only its size moved. Anything older than the window
+is still uncorrectable — not from Today, not from the medicine's own history
+screen.
 
 ## Tier 3 — data safety
 
@@ -121,8 +124,11 @@ reaches for first.
 **20. No calendar view.** A month grid of pockets would answer "how is this
 course going" at a glance, in the visual language the app already owns.
 
-**21. Export is JSON only.** No printable or shareable summary for the one moment
-this data leaves the device, which is a doctor's appointment.
+**21. Export is JSON only.** _(Half done.)_ Copy on the Medicines header now puts
+the live courses on the clipboard as plain text, which answers "what are you on"
+in a chat. What is still missing is the half a doctor asks for: the record. There
+is no shareable or printable summary of adherence, so the appointment case is
+only served for the prescription and not for what was actually taken.
 
 **22. No adherence across all medicines.** `adherenceFor` is per group. Nothing
 answers "this week you took 34 of 40".

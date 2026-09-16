@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ChevronDown, Pill, Plus, RotateCcw, Search, SearchX, Trash2, Undo2 } from 'lucide-react'
+import { Check, ChevronDown, Copy, Pill, Plus, RotateCcw, Search, SearchX, Trash2, Undo2 } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,11 +18,15 @@ import { MetaLine } from '@/components/MetaLine'
 import { PageHeader } from '@/components/PageHeader'
 import type { CourseAction } from '@/lib/actions'
 import { courseActions } from '@/lib/actions'
+import { courseFill } from '@/lib/calendar'
+import { copyText } from '@/lib/clipboard'
 import { relativeDayLabel, useToday } from '@/lib/dates'
-import { describeDuration, describeGroupSpan, describeRepeat } from '@/lib/describe'
+import { describeDuration, describeGroupSpan, describeRepeat, describeTally } from '@/lib/describe'
 import { loadExamples } from '@/lib/examples'
+import { FILL_POCKET } from '@/lib/outcome'
+import { prescriptionText } from '@/lib/prescription'
 import type { MedicineGroup } from '@/lib/schedule'
-import { courseStatus, groupMedicines, nextOpenDate } from '@/lib/schedule'
+import { adherenceFor, courseStatus, groupMedicines, nextOpenDate } from '@/lib/schedule'
 import { slotLabel, sortSlots } from '@/lib/slots'
 import {
   deleteMedicine,
@@ -49,6 +53,13 @@ type Confirm =
  */
 const SEARCH_FROM = 6
 
+/**
+ * The two headings a live course can sit under, named once. The list draws them
+ * and the copied prescription prints them, so they cannot come apart.
+ */
+const RUNNING = 'Running'
+const NOT_STARTED = 'Not started'
+
 export function Medicines() {
   const db = useDatabase()
   const now = useToday()
@@ -61,18 +72,44 @@ export function Medicines() {
   const groups = useMemo(() => groupMedicines(db.medicines), [db])
   const needle = query.trim().toLowerCase()
 
-  const { active, upcoming, archived } = useMemo(() => {
-    // The name only. A hit on a note or a slot label would be a card in the
-    // list with nothing on it that matches what was typed.
-    const keep = needle ? groups.filter((g) => g.current.name.toLowerCase().includes(needle)) : groups
+  // Which section a course belongs in, asked once and before anything is typed.
+  // The search narrows this rather than replacing it, so the same rule decides
+  // what is running whether or not a lens is over the list.
+  const sections = useMemo(() => {
+    const live = groups.filter((g) => !g.current.deletedAt)
     return {
-      active: keep.filter((g) => !g.current.deletedAt && courseStatus(g, now) === 'active'),
-      upcoming: keep.filter((g) => !g.current.deletedAt && courseStatus(g, now) === 'upcoming'),
-      archived: keep.filter(
+      active: live.filter((g) => courseStatus(g, now) === 'active'),
+      upcoming: live.filter((g) => courseStatus(g, now) === 'upcoming'),
+      archived: groups.filter(
         (g) => g.current.deletedAt || ['finished', 'stopped'].includes(courseStatus(g, now)),
       ),
     }
-  }, [groups, needle, now])
+  }, [groups, now])
+
+  const { active, upcoming, archived } = useMemo(() => {
+    if (!needle) return sections
+    // The name only. A hit on a note or a slot label would be a card in the
+    // list with nothing on it that matches what was typed.
+    const keep = (list: MedicineGroup[]) =>
+      list.filter((g) => g.current.name.toLowerCase().includes(needle))
+    return { active: keep(sections.active), upcoming: keep(sections.upcoming), archived: keep(sections.archived) }
+  }, [sections, needle])
+
+  // Deliberately read off the sections rather than off what the search left
+  // showing. A lens is for finding one card; a prescription that quietly
+  // dropped half your medicines because something was still typed in the box
+  // is the kind of mistake this app exists to prevent.
+  const prescription = useMemo(
+    () =>
+      prescriptionText(
+        [
+          { title: RUNNING, groups: sections.active },
+          { title: NOT_STARTED, groups: sections.upcoming },
+        ],
+        now,
+      ),
+    [sections, now],
+  )
 
   const total = groups.length
   const found = active.length + upcoming.length + archived.length
@@ -82,12 +119,17 @@ export function Medicines() {
       <PageHeader
         title="Medicines"
         action={
-          <Button asChild size="sm">
-            <Link to="/medicines/new">
-              <Plus className="size-4" />
-              Add
-            </Link>
-          </Button>
+          <div className="flex items-center gap-2">
+            {/* Nothing live, nothing to hand anyone. An empty install and a
+                shelf of finished courses both leave the press away. */}
+            {prescription ? <CopyPrescription text={prescription} /> : null}
+            <Button asChild size="sm">
+              <Link to="/medicines/new">
+                <Plus className="size-4" />
+                Add
+              </Link>
+            </Button>
+          </div>
         }
       />
 
@@ -132,8 +174,8 @@ export function Medicines() {
             </EmptyState>
           ) : (
             <div className="space-y-8">
-              <Section title="Running" groups={active} db={db} now={now} onConfirm={setConfirm} />
-              <Section title="Not started" groups={upcoming} db={db} now={now} onConfirm={setConfirm} />
+              <Section title={RUNNING} groups={active} db={db} now={now} onConfirm={setConfirm} />
+              <Section title={NOT_STARTED} groups={upcoming} db={db} now={now} onConfirm={setConfirm} />
               {/* The one section that grows for as long as the app is used, and
                   the only one that folds. Running and Not started are bounded by
                   how many courses you are actually on.
@@ -285,39 +327,58 @@ function MedicineCard({
   const status = courseStatus(group, now)
   const deleted = Boolean(m.deletedAt)
   const due = deleted ? undefined : nextOpenDate(db, group, now)
+  // Held, because it walks every dose the course ever scheduled and a chronic
+  // one entered as ten years is thousands of them. Typing in the search field
+  // re-renders every card on the screen, and none of them changed.
+  const tally = useMemo(() => adherenceFor(db, group, now), [db, group, now])
 
   return (
     <article className="surface rounded-xl bg-card p-3.5">
-      <div className="flex items-start justify-between gap-3">
-        <h3 className="min-w-0 flex-1 text-[15px] font-semibold leading-snug tracking-[-0.01em]">{m.name}</h3>
+      <div className="flex gap-2.5">
+        {/* The card's one pocket, and the only thing on this screen printed in
+            the theme's confident colour. How the course is going, in the same
+            four steps the month grid uses: filled where it has been taken,
+            hatched where it is being missed, recessed where nothing has been
+            answered yet. Bauhaus cuts it round, Cyberpunk lights it, and
+            Monochrome still tells the four apart. */}
         <span
-          className={cn(
-            'type-eyebrow shrink-0 rounded-md px-1.5 py-1',
-            due === now ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground',
-          )}
-        >
-          {deleted ? 'Deleted' : status === 'stopped' ? 'Stopped' : due ? `Due ${relativeDayLabel(due, now)}` : 'Done'}
-        </span>
+          role="img"
+          aria-label={describeTally(tally)}
+          className={cn('pocket mt-px size-6 shrink-0', FILL_POCKET[courseFill(tally)])}
+        />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-3">
+            <h3 className="min-w-0 flex-1 text-[15px] font-semibold leading-snug tracking-[-0.01em]">{m.name}</h3>
+            <span
+              className={cn(
+                'type-eyebrow shrink-0 rounded-md px-1.5 py-1',
+                due === now ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground',
+              )}
+            >
+              {deleted ? 'Deleted' : status === 'stopped' ? 'Stopped' : due ? `Due ${relativeDayLabel(due, now)}` : 'Done'}
+            </span>
+          </div>
+
+          <MetaLine
+            className="mt-1"
+            parts={[
+              describeRepeat(m),
+              describeDuration(m.durationValue, m.durationUnit),
+              describeGroupSpan(group),
+            ]}
+          />
+
+          <div className="mt-2.5 flex flex-wrap gap-1.5">
+            {sortSlots(m.slots).map((slot) => (
+              <span key={slot} className="type-eyebrow rounded-md border px-1.5 py-1 text-muted-foreground">
+                {slotLabel(slot)}
+              </span>
+            ))}
+          </div>
+
+          {m.note ? <p className="mt-2.5 text-xs leading-relaxed text-muted-foreground">{m.note}</p> : null}
+        </div>
       </div>
-
-      <MetaLine
-        className="mt-1"
-        parts={[
-          describeRepeat(m),
-          describeDuration(m.durationValue, m.durationUnit),
-          describeGroupSpan(group),
-        ]}
-      />
-
-      <div className="mt-2.5 flex flex-wrap gap-1.5">
-        {sortSlots(m.slots).map((slot) => (
-          <span key={slot} className="type-eyebrow rounded-md border px-1.5 py-1 text-muted-foreground">
-            {slotLabel(slot)}
-          </span>
-        ))}
-      </div>
-
-      {m.note ? <p className="mt-2.5 text-xs leading-relaxed text-muted-foreground">{m.note}</p> : null}
 
       <div className="-mx-1 mt-3 flex flex-wrap items-center gap-1 border-t pt-2">
         {courseActions(group, now).map((action) => (
@@ -325,6 +386,51 @@ function MedicineCard({
         ))}
       </div>
     </article>
+  )
+}
+
+/** How long the button wears its answer before going back to offering the press. */
+const COPIED_FOR = 2000
+
+/**
+ * The prescription, on the clipboard. The one moment this data leaves the
+ * device is somebody asking what you are on, and until now the only answer was
+ * a JSON file on the Settings screen, which is not something you can send your
+ * mother.
+ *
+ * The button says what happened rather than raising a toast the app has nowhere
+ * to put, and it says it in its own label so the press and the answer are the
+ * same object. Refusal is a face it wears too: Safari can deny the clipboard
+ * outright, and a button that looks like it worked would be worse than one that
+ * admits it did not.
+ */
+function CopyPrescription({ text }: { text: string }) {
+  const [said, setSaid] = useState<'copied' | 'refused'>()
+  const clearing = useRef<ReturnType<typeof setTimeout>>(undefined)
+
+  // Nothing to cancel, only a timer that would otherwise set state on a screen
+  // that has been walked away from.
+  useEffect(() => () => clearTimeout(clearing.current), [])
+
+  async function press() {
+    const copied = await copyText(text)
+    setSaid(copied ? 'copied' : 'refused')
+    clearTimeout(clearing.current)
+    clearing.current = setTimeout(() => setSaid(undefined), COPIED_FOR)
+  }
+
+  return (
+    <>
+      <Button size="sm" variant="outline" onClick={press}>
+        {said === 'copied' ? <Check className="size-4" /> : <Copy className="size-4" />}
+        {said === 'copied' ? 'Copied' : said === 'refused' ? 'Cannot copy' : 'Copy'}
+      </Button>
+      {/* The label change is the answer for anyone who can see it. Read out, a
+          button whose name quietly changed says nothing at all. */}
+      <span role="status" className="sr-only">
+        {said === 'copied' ? 'Prescription copied' : said === 'refused' ? 'The clipboard refused' : ''}
+      </span>
+    </>
   )
 }
 
