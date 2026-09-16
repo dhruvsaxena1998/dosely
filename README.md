@@ -46,8 +46,32 @@ with nothing taken and something missed is the hatch. Pressing a day with anythi
 behind it opens a sheet listing its doses; a blank day is not a button. The stamp
 under the month name is the one number a doctor asks for.
 
+Each card on the Medicines screen carries the same pocket read over a whole
+course rather than a day, which is the one thing on that screen printed in the
+theme's confident colour. The rule is not restated for it: a course that has
+gone well is the same fill as a day that went well, and it always will be.
+
 There is no chart library behind it. A month grid is a CSS grid, the cells are
 the app's pockets, and every theme prints it for free.
+
+### Handing the list to someone
+
+The one moment this data leaves the device is somebody asking what you are on,
+and the only answer used to be a JSON file on the Settings screen, which is not
+something you can send your mother. Copy, on the Medicines header, puts the live
+courses on the clipboard as plain text under the same headings the list draws
+them under.
+
+Plain text rather than a file, because the answer is usually pasted into a chat.
+That rules out anything the receiving app might eat: no markdown, no table, and
+no character a phone keyboard cannot type back. The shape carries the structure
+instead, a blank line between courses and an indent under each name.
+
+It copies the prescription rather than what you can see. A search is a lens for
+finding one card, and a prescription that quietly dropped half your medicines
+because something was still typed in the box is the kind of mistake this app
+exists to prevent. The archive stays out for the same reason in reverse: a
+course you finished in March is not an answer to what you are taking now.
 
 ### Themes
 
@@ -211,7 +235,13 @@ edit. Each one stores the full timestamp and the medicine's name at that moment.
 ### Days
 
 The day rolls over at 3am, so a pill swallowed at 1am counts for the night before.
-The Today screen steps back three days; anything older is locked.
+The Today screen steps back a fortnight; anything older is locked.
+
+A locked past is what makes the log worth trusting, so there is a floor at all.
+Where it sits is a guess about how long you can go without opening the app, and
+three days was the wrong guess: a long weekend away put the record beyond
+correcting, which is worse than a gap in it. Fourteen covers a trip and still
+refuses to let last month be written from memory.
 
 It also steps **forward**, because "what do I take tomorrow" is a question you ask
 the night before. A day ahead reads rather than presses: the rows lose their tick
@@ -229,14 +259,16 @@ stops at 29 Sep, because that is the last day it actually asks anything of you.
 ## Layout
 
 ```
-src/lib/dates.ts       date keys, the 3am rollover, half-open course ends
-src/lib/slots.ts       the seven slots and their fixed order
-src/lib/weekdays.ts    ISO weekdays, Monday first, and the every-day normal form
-src/lib/calendar.ts    month layout and how full a day draws — pure
-src/lib/schedule.ts    versions, dose days, adherence — all pure
-src/lib/store.ts       localStorage plus the mutations, the only stateful module
-src/lib/feedback.ts    whether and how a press answers back
-src/screens/           Today, Medicines, MedicineForm, History, MedicineHistory
+src/lib/dates.ts         date keys, the 3am rollover, half-open course ends
+src/lib/slots.ts         the seven slots and their fixed order
+src/lib/weekdays.ts      ISO weekdays, Monday first, and the every-day normal form
+src/lib/calendar.ts      month layout and how full a day draws — pure
+src/lib/schedule.ts      versions, dose days, adherence — all pure
+src/lib/prescription.ts  the live courses as plain text to paste — pure
+src/lib/clipboard.ts     the only place that touches the Clipboard API
+src/lib/store.ts         localStorage plus the mutations, the only stateful module
+src/lib/feedback.ts      whether and how a press answers back
+src/screens/             Today, Medicines, MedicineForm, History, MedicineHistory
 ```
 
 `schedule.ts` is pure and carries most of the tests. `store.ts` is the only place

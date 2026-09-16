@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { clampMonth, dayFill, dayOpens, formatMonth, monthCells, monthEnd, shiftMonth } from '@/lib/calendar'
-import type { DayTally } from '@/lib/schedule'
+import { clampMonth, courseFill, dayFill, dayOpens, formatMonth, monthCells, monthEnd, shiftMonth } from '@/lib/calendar'
+import type { Adherence, DayTally } from '@/lib/schedule'
 
 function tally(t: Partial<DayTally>): DayTally {
   const full = { taken: 0, skipped: 0, missed: 0, pending: 0, ...t }
@@ -48,5 +48,27 @@ describe('how full a day draws', () => {
     expect(dayOpens(tally({ pending: 2 }))).toBe(false)
     expect(dayOpens(tally({ taken: 1, pending: 1 }))).toBe(true)
     expect(dayOpens(tally({ missed: 1 }))).toBe(true)
+  })
+})
+
+describe('a whole course read as one pocket', () => {
+  function course(a: Partial<Adherence>): Adherence {
+    const full = { taken: 0, skipped: 0, missed: 0, pending: 0, ...a }
+    return { total: full.taken + full.skipped + full.missed + full.pending, ...full }
+  }
+
+  it('reads a course the same way it reads a day', () => {
+    expect(courseFill(course({ taken: 20 }))).toBe('full')
+    expect(courseFill(course({ taken: 18, missed: 2 }))).toBe('high')
+    expect(courseFill(course({ taken: 4, missed: 16 }))).toBe('low')
+    expect(courseFill(course({ missed: 6 }))).toBe('missed')
+  })
+
+  // The bulk of a long course is still to come, and a card that paled for
+  // months because most of the doses were in the future would say nothing.
+  it('judges a course on what has been answered, not on what is left', () => {
+    expect(courseFill(course({ taken: 3, pending: 87 }))).toBe('full')
+    expect(courseFill(course({ pending: 90 }))).toBe('pending')
+    expect(courseFill(course({ skipped: 2, pending: 88 }))).toBe('skipped')
   })
 })

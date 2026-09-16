@@ -1,3 +1,4 @@
+import type { DayFill } from '@/lib/calendar'
 import type { DoseOutcome } from '@/lib/schedule'
 
 export const OUTCOME_LABEL: Record<DoseOutcome, string> = {
@@ -37,4 +38,23 @@ export const OUTCOME_CHIP: Record<DoseOutcome, string> = {
   skipped: 'bg-skipped/15 text-skipped-foreground',
   missed: 'border border-dashed border-border text-missed-foreground',
   pending: 'bg-muted text-muted-foreground',
+}
+
+/**
+ * A pocket standing for a stretch of time rather than for one dose: a day in
+ * the month grid, a whole course on a medicine card.
+ *
+ * Only taken gets the theme's confident colour, in three strengths. Missed is
+ * the hatch, skipped keeps its own colour, and the rest are recessed. The steps
+ * are fixed rather than a ramp so Monochrome and Newsprint keep them apart with
+ * no hue at all.
+ */
+export const FILL_POCKET: Record<DayFill, string> = {
+  none: 'border-transparent bg-transparent',
+  pending: 'border-border/70 bg-muted pocket-empty',
+  missed: 'border-border/70 hatch',
+  skipped: 'pocket-filled [--glow-tint:var(--skipped)] border-skipped bg-skipped text-skipped-contrast',
+  low: 'border-taken/40 bg-taken/25',
+  high: 'border-taken/70 bg-taken/55',
+  full: 'pocket-filled border-taken bg-taken text-taken-contrast',
 }

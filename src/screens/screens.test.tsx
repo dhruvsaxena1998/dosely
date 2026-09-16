@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
@@ -347,6 +347,140 @@ describe('the Medicines screen', () => {
     expect(link.getAttribute('href')).toBe(`/medicines/new?from=${id}`)
     // The press used to be the mutation. Nothing exists until the form is saved.
     expect(groupMedicines(getDatabase().medicines)).toHaveLength(1)
+  })
+})
+
+describe('copying the prescription', () => {
+  /** jsdom has never heard of the clipboard, so one is planted and taken away again. */
+  function pretendClipboard(refuses = false) {
+    const writeText = vi.fn((_text: string) =>
+      refuses ? Promise.reject(new Error('Denied')) : Promise.resolve(),
+    )
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+    return writeText
+  }
+
+  afterEach(() => {
+    delete (navigator as unknown as Record<string, unknown>).clipboard
+  })
+
+  function copyButton() {
+    return screen.getByRole('button', { name: /^(Copy|Copied|Cannot copy)$/ })
+  }
+
+  it('copies the live courses under the headings the list gives them', async () => {
+    const user = userEvent.setup()
+    const writeText = pretendClipboard()
+    loadExamples()
+    at('/medicines', <Medicines />, '/medicines')
+
+    await user.click(copyButton())
+
+    const text = writeText.mock.calls[0][0]
+    expect(text).toContain('RUNNING')
+    expect(text).toContain('Omeprazole 20MG\n  Before breakfast')
+    // Vitamin C starts three days after the rest, so it is the one course that
+    // has not begun and it is filed under its own heading.
+    expect(text).toContain('NOT STARTED')
+    expect(text.indexOf('Vitamin C 500MG')).toBeGreaterThan(text.indexOf('NOT STARTED'))
+  })
+
+  it('says on the button that it landed', async () => {
+    const user = userEvent.setup()
+    pretendClipboard()
+    loadExamples()
+    at('/medicines', <Medicines />, '/medicines')
+
+    await user.click(copyButton())
+
+    expect(screen.getByRole('button', { name: 'Copied' })).toBeTruthy()
+    expect(screen.getByRole('status').textContent).toBe('Prescription copied')
+  })
+
+  it('admits it when the clipboard refuses', async () => {
+    const user = userEvent.setup()
+    pretendClipboard(true)
+    loadExamples()
+    at('/medicines', <Medicines />, '/medicines')
+
+    await user.click(copyButton())
+
+    // A button that looked like it worked would be worse than one that did not.
+    expect(screen.getByRole('button', { name: 'Cannot copy' })).toBeTruthy()
+    expect(screen.getByRole('status').textContent).toBe('The clipboard refused')
+  })
+
+  it('copies the whole prescription, not what the search narrowed to', async () => {
+    const user = userEvent.setup()
+    const writeText = pretendClipboard()
+    loadExamples()
+    at('/medicines', <Medicines />, '/medicines')
+
+    await user.type(screen.getByLabelText('Find a medicine'), 'omeprazole')
+    expect(screen.queryByText('Multivitamin')).toBeNull()
+
+    await user.click(copyButton())
+
+    // A lens is for finding one card. A prescription that quietly dropped half
+    // the medicines because something was still typed in the box is the kind of
+    // mistake this app exists to prevent.
+    expect(writeText.mock.calls[0][0]).toContain('Multivitamin')
+  })
+
+  it('leaves the press away when there is nothing live to hand anyone', async () => {
+    const user = userEvent.setup()
+    pretendClipboard()
+    const empty = at('/medicines', <Medicines />, '/medicines')
+    expect(screen.queryByRole('button', { name: /^Copy$/ })).toBeNull()
+    empty.unmount()
+
+    // A shelf of finished courses is not a prescription either.
+    addMedicine({
+      name: 'Amoxicillin 500MG',
+      slots: ['after-breakfast'],
+      repeatEveryDays: 1,
+      anchorDate: shiftKey(now, -20),
+      durationValue: 7,
+      durationUnit: 'days',
+    })
+    at('/medicines', <Medicines />, '/medicines')
+    await openArchive(user)
+    expect(screen.getByText('Amoxicillin 500MG')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /^Copy$/ })).toBeNull()
+  })
+})
+
+describe('the pocket on a medicine card', () => {
+  it('reads out the whole count rather than the fill it was reduced to', () => {
+    const id = addMedicine({
+      name: 'Calcium with D3',
+      slots: ['after-breakfast'],
+      repeatEveryDays: 1,
+      anchorDate: shiftKey(now, -2),
+      durationValue: 3,
+      durationUnit: 'days',
+    })
+    setDose(id, shiftKey(now, -2), 'after-breakfast', 'taken')
+    at('/medicines', <Medicines />, '/medicines')
+
+    const card = screen.getByText('Calcium with D3').closest('article')!
+    expect(within(card).getByRole('img').getAttribute('aria-label')).toBe('1 taken, 1 missed, 1 due of 3')
+  })
+
+  it('leaves a course that has not started recessed rather than missed', () => {
+    addMedicine({
+      name: 'Vitamin D3 60000',
+      slots: ['anytime'],
+      repeatEveryDays: 1,
+      anchorDate: shiftKey(now, 3),
+      durationValue: 2,
+      durationUnit: 'days',
+    })
+    at('/medicines', <Medicines />, '/medicines')
+
+    // Nothing has been asked of it yet, so nothing has been failed.
+    const card = screen.getByText('Vitamin D3 60000').closest('article')!
+    expect(within(card).getByRole('img').getAttribute('aria-label')).toBe('2 due of 2')
   })
 })
 

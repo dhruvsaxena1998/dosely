@@ -1,38 +1,14 @@
 import { useMemo, useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import type { DayFill } from '@/lib/calendar'
 import { clampMonth, dayFill, dayOpens, formatMonth, monthCells, monthOf, shiftMonth } from '@/lib/calendar'
 import type { DateKey } from '@/lib/dates'
 import { formatDay } from '@/lib/dates'
+import { describeTally } from '@/lib/describe'
+import { FILL_POCKET } from '@/lib/outcome'
 import type { DayTally } from '@/lib/schedule'
 import { WEEKDAYS } from '@/lib/weekdays'
 import { cn } from '@/lib/utils'
-
-/**
- * How each fill is drawn. Only taken gets the theme's confident colour, in
- * three strengths; missed is the hatch; skipped its own colour; the rest are
- * recessed. The steps are fixed rather than a ramp so that Monochrome and
- * Newsprint keep them apart with no hue at all.
- */
-const FILL: Record<DayFill, string> = {
-  none: 'border-transparent bg-transparent',
-  pending: 'border-border/70 bg-muted pocket-empty',
-  missed: 'border-border/70 hatch',
-  skipped: 'pocket-filled [--glow-tint:var(--skipped)] border-skipped bg-skipped text-skipped-contrast',
-  low: 'border-taken/40 bg-taken/25',
-  high: 'border-taken/70 bg-taken/55',
-  full: 'pocket-filled border-taken bg-taken text-taken-contrast',
-}
-
-function describeTally(t: DayTally): string {
-  const parts: string[] = []
-  if (t.taken) parts.push(`${t.taken} taken`)
-  if (t.skipped) parts.push(`${t.skipped} skipped`)
-  if (t.missed) parts.push(`${t.missed} missed`)
-  if (t.pending) parts.push(`${t.pending} due`)
-  return `${parts.join(', ')} of ${t.scheduled}`
-}
 
 /**
  * A month of pockets, one per day. The blister strip answers how today is
@@ -119,11 +95,11 @@ export function MonthGrid({
         {dates.map((date) => {
           const t = days.get(date)
           const fill = t ? dayFill(t) : 'none'
-          const label = `${formatDay(date)}${t ? `: ${describeTally(t)}` : ''}`
+          const label = `${formatDay(date)}${t ? `: ${describeTally({ ...t, total: t.scheduled })}` : ''}`
           const className = cn(
             'pocket relative flex aspect-square items-start justify-start p-1 text-[10px] leading-none',
             'type-data',
-            FILL[fill],
+            FILL_POCKET[fill],
             fill === 'none' || fill === 'pending' || fill === 'missed' ? 'text-muted-foreground' : undefined,
             date === today && 'outline-2 outline-offset-1 outline-foreground/50',
           )
