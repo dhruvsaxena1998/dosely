@@ -78,8 +78,11 @@ hint tells you to put strength in the name, so `name` is doing three jobs.
 **10. No as-needed medicine.** A painkiller taken when needed has no schedule, so
 it produces no rows, so there is no way to record having taken one.
 
-**11. Slots are fixed, and carry no times.** Seven hardcoded labels, no clock
-times, no renaming. A night shift gets a list ordered around someone else's
+**11. Slots are fixed, and carry no times.** _(Times carried by #58.)_ Seven
+hardcoded labels, no clock times, no renaming. Reminders could not be built
+without knowing when a slot falls, so the times now exist — on the device,
+beside the ntfy topic, rather than in the model. Renaming, reordering and
+adding slots are untouched, and so is the fact that the seven are hardcoded. A night shift gets a list ordered around someone else's
 breakfast.
 
 **12. Backfill is hardcoded.** _(Half done.)_ `BACKFILL_DAYS` was three days,

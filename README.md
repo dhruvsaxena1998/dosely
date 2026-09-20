@@ -10,7 +10,7 @@ people using it each install it on their own device and their data never meets.
 ```bash
 pnpm install
 pnpm dev       # http://localhost:5173
-pnpm test      # 145 tests
+pnpm test      # 339 tests
 pnpm build
 ```
 
@@ -185,6 +185,71 @@ deliberately not in the exported database. Feedback is a property of a device,
 not of a prescription; a backup restored onto a tablet must not bring the phone's
 speaker with it.
 
+## Reminders
+
+Dosely has no server, so nothing of its own can run while it is closed. What it
+can do is leave instructions with something that is always running.
+
+**ntfy is the alarm clock and Dosely only ever sets it.** A message published
+with a delivery time sits on ntfy's server until that time comes, and is then
+delivered by the ntfy app on whatever phone is subscribed to the topic. That
+second app is the surprising part and it is said first on the Settings screen:
+the buzz does not come from Dosely, and a topic nobody subscribed to accepts
+messages happily and delivers them nowhere. Hence the test button, which is the
+only feedback channel the feature has.
+
+The reason this is buildable at all is that ntfy lets a publisher **address** a
+scheduled message. Each reminder is booked under `d<date>-<slot>`, one slot on
+one day, for ever. Publishing to an address that already holds a pending message
+replaces it. So the whole feature is a reconciliation rather than a send: work
+out which reminders should exist over the next three days, compare with a small
+local ledger of the ones we believe do, and send the difference.
+
+Everything worth having falls out of the addressing rather than being coded for:
+
+- **Opening the app twice books one reminder, not two.**
+- **Adding two more medicines to after lunch corrects the count** on the
+  reminder already booked, instead of arriving as a second notification.
+- **Ticking a dose silences its reminder.** A slot with nothing pending left
+  produces no reminder, so the next reconcile cancels the one on file. Untick it
+  and it comes back. A skip counts as answered, the same rule the month grid
+  holds: a skip is a decision.
+- **Two devices on one topic do not double up**, because both derive the same
+  addresses.
+- **An ordinary open costs nothing.** The ledger already matches, so the diff is
+  empty and no request is made.
+
+It says as little as it can. "After lunch — 3 doses due." An ntfy topic has no
+account and no password; **the topic is the password**, so it is generated at
+eighty bits rather than chosen, and medicine names are off unless you turn them
+on, next to the sentence explaining what that means.
+
+### Three days, and then it stops
+
+ntfy will not accept a delivery more than three days out. That is a server-side
+limit rather than a default, so the window is three days and cannot be bought,
+tuned or worked around without running something ourselves.
+
+**So reminders lapse if you do not open Dosely for three days.** It is said in
+the Settings section as a rule, and under it as a fact — the date the booked
+reminders currently run through. In practice the window renews itself for anyone
+who uses it, because tapping a reminder opens the app and opening the app books
+the next three days. For anyone who stops, it goes quiet. That is the correct
+way for this to fail, and it is the honest shape of a reminder in an app with no
+server: it cannot outlive your attention by more than three days, so it does not
+pretend to.
+
+One known cost. If you tick a dose while offline, the cancellation does not
+land, and the reminder arrives anyway for something you have already taken. The
+ledger keeps the entry so a later sync retries the delete. A notification that is
+out of date is the price of having nothing running on a server, and it is a
+smaller price than the alternative.
+
+The notification is a **door, not a control**. ntfy's action buttons can fire an
+HTTP request, but there is nothing here to fire it at, so there is no Taken
+button that would silently record nothing. Tapping it opens Dosely, which is
+where the dose gets ticked and where the next three days get booked.
+
 ## The model
 
 A **medicine** has a name, a set of **slots**, a repeat, a start date, and a
@@ -308,7 +373,17 @@ that writes.
 
 ## Not built
 
-Reminders. Nothing fires when the app is closed, by design: a cron would need your
-schedule on a server, and ntfy's scheduled delivery caps at three days ahead, so it
-stops working exactly when you stop opening the app. The app is built for people
-who remember to take medicines and forget whether they did.
+Reminders that outlive your attention. The paragraph that used to sit here was
+right about the mechanism and right about the limit — a cron would need your
+schedule on a server, and ntfy's scheduled delivery caps at three days ahead —
+and the limit has not moved. What changed is that three days turned out to be
+enough to be worth having, because a reminder is also the thing that brings you
+back to set the next three. See **Reminders** above for exactly when it stops
+working.
+
+Recording a dose from the notification, for the reason given there: there is no
+backend to receive it.
+
+The app is still built for people who remember to take medicines and forget
+whether they did. The reminders are an opt-in second answer, off until you turn
+them on, and nothing about the app changes if you never do.

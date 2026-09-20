@@ -64,7 +64,8 @@ describe('the feedback setting', () => {
     )
 
     const group = screen.getByRole('radiogroup', { name: 'Feedback' })
-    expect(screen.getByRole('radio', { name: 'Off' })).toBeTruthy()
+    // Scoped: the Reminders section has an Off of its own on this screen.
+    expect(within(group).getByRole('radio', { name: 'Off' })).toBeTruthy()
     expect(screen.getByRole('radio', { name: 'Haptic' })).toBeTruthy()
     expect(screen.getByRole('radio', { name: 'And sound' })).toBeTruthy()
     // jsdom has no Vibration API, which is the device the default is written for.
@@ -94,7 +95,8 @@ describe('the feedback setting', () => {
       </MemoryRouter>,
     )
 
-    await user.click(screen.getByRole('radio', { name: 'Off' }))
+    const group = screen.getByRole('radiogroup', { name: 'Feedback' })
+    await user.click(within(group).getByRole('radio', { name: 'Off' }))
 
     expect(feedbackMode()).toBe('off')
     expect(stub.trigger).not.toHaveBeenCalled()

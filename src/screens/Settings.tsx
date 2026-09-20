@@ -5,6 +5,7 @@ import { AppUpdate } from '@/components/AppUpdate'
 import { Changelog } from '@/components/Changelog'
 import { Feedback } from '@/components/Feedback'
 import { PageHeader } from '@/components/PageHeader'
+import { Reminders } from '@/components/Reminders'
 import { ThemePicker } from '@/components/ThemePicker'
 import { Button } from '@/components/ui/button'
 import { today } from '@/lib/dates'
@@ -56,6 +57,17 @@ export function Settings() {
             get a short click as well — turn it down to Haptic if the room is asleep.
           </p>
           <Feedback />
+        </section>
+
+        <section>
+          <Heading>Reminders</Heading>
+          <p className="mb-3 text-xs leading-relaxed text-muted-foreground">
+            Dosely has no server, so it cannot buzz you itself. It books the next three days of
+            reminders with ntfy, and tops them up every time you open the app — which means they
+            run out if you stay away for three days. Tapping one opens Dosely and sets the next
+            three.
+          </p>
+          <Reminders />
         </section>
 
         <section>
