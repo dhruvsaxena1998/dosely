@@ -196,6 +196,49 @@ describe('when a request does not land', () => {
   })
 })
 
+describe('reminders booked by an older build', () => {
+  // The upgrade path. Anything already on the server was published with the old
+  // message, and the diff cannot see that from the time and the words alone —
+  // so without the shape the wrong notification keeps arriving for up to three
+  // days after the fix ships.
+  it('are corrected on the first open after the app changes what it sends', async () => {
+    metformin()
+    turnOn()
+    await syncReminders(NOW)
+    const booked = Object.keys(readLedger())
+    expect(booked.length).toBeGreaterThan(0)
+
+    // Rewind the ledger to what the previous build would have written.
+    const stale = Object.fromEntries(
+      Object.entries(readLedger()).map(([id, e]) => [id, { at: e.at, body: e.body }]),
+    )
+    localStorage.setItem('dosely.reminders.booked', JSON.stringify(stale))
+    fetched.mockClear()
+
+    await syncReminders(NOW)
+
+    expect(calls()).toHaveLength(booked.length)
+    expect(calls().every((c) => c.startsWith('POST'))).toBe(true)
+    // Republished in place, not cancelled and rebooked: same addresses, same count.
+    expect(Object.keys(readLedger()).sort()).toEqual(booked.sort())
+  })
+
+  it('go quiet again once corrected', async () => {
+    metformin()
+    turnOn()
+    await syncReminders(NOW)
+    const stale = Object.fromEntries(
+      Object.entries(readLedger()).map(([id, e]) => [id, { at: e.at, body: e.body }]),
+    )
+    localStorage.setItem('dosely.reminders.booked', JSON.stringify(stale))
+    await syncReminders(NOW)
+    fetched.mockClear()
+
+    await syncReminders(NOW)
+    expect(fetched).not.toHaveBeenCalled()
+  })
+})
+
 describe('a reminder that has already been delivered', () => {
   it('is forgotten rather than cancelled', async () => {
     localStorage.setItem(

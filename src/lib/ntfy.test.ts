@@ -57,11 +57,11 @@ describe('booking a reminder', () => {
     expect(lastCall().init.body).toBe('2 doses due')
   })
 
-  // Tapping the notification has to land back in the app, because opening the
-  // app is what books the next three days. Without this the window runs out.
-  it('points the tap back at the app', async () => {
+  // Not the front door: on iOS a tap cannot reach the installed app, so it
+  // lands on the page that explains that rather than on an empty medicine list.
+  it('points the tap at the page that knows where it landed', async () => {
     await publish(config, reminder)
-    expect(lastCall().headers['X-Click']).toBe(window.location.origin)
+    expect(lastCall().headers['X-Click']).toBe(`${window.location.origin}/reminder`)
   })
 
   it('does not double the slash on a server written with a trailing one', async () => {

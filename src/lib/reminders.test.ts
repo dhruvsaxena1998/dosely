@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_SETTINGS, type ReminderSettings } from '@/lib/reminder-settings'
-import { plannedReminders, reconcile, reminderId, type Ledger } from '@/lib/reminders'
+import { MESSAGE_SHAPE, plannedReminders, reconcile, reminderId, type Ledger } from '@/lib/reminders'
 import { logKey } from '@/lib/schedule'
 import type { Database, DoseState, MedicineInput, MedicineRecord } from '@/types'
 
@@ -262,7 +262,7 @@ describe('the address', () => {
 
 describe('the difference between wanted and booked', () => {
   const reminder = { id: 'd2026-09-22-after-lunch', at: '2026-09-22T13:30:00.000Z', title: 'After lunch', body: '2 doses due' }
-  const booked: Ledger = { [reminder.id]: { at: reminder.at, body: reminder.body } }
+  const booked: Ledger = { [reminder.id]: { at: reminder.at, body: reminder.body, shape: MESSAGE_SHAPE } }
 
   // The property that keeps this inside ntfy.sh's daily allowance: opening the
   // app when nothing has changed must cost nothing at all.
@@ -302,6 +302,27 @@ describe('the difference between wanted and booked', () => {
   it('publishes an address it has never seen', () => {
     expect(reconcile([reminder], {}, NOW).publish).toEqual([reminder])
   })
+
+  // Without this the diff can only see the time and the words, so a change to
+  // any other part of the message leaves every booking already on the server
+  // carrying the old one until it fires — up to three days of notifications
+  // built by the previous version of the app.
+  it('republishes a booking made in a shape the app no longer sends', () => {
+    const old: Ledger = { [reminder.id]: { at: reminder.at, body: reminder.body, shape: 1 } }
+    expect(reconcile([reminder], old, NOW).publish).toEqual([reminder])
+  })
+
+  it('republishes a booking from before shapes were recorded at all', () => {
+    const ancient: Ledger = { [reminder.id]: { at: reminder.at, body: reminder.body } }
+    expect(reconcile([reminder], ancient, NOW).publish).toEqual([reminder])
+  })
+
+  it('corrects it once and then goes quiet again', () => {
+    const old: Ledger = { [reminder.id]: { at: reminder.at, body: reminder.body, shape: 1 } }
+    expect(reconcile([reminder], old, NOW).publish).toHaveLength(1)
+    const after: Ledger = { [reminder.id]: { at: reminder.at, body: reminder.body, shape: MESSAGE_SHAPE } }
+    expect(reconcile([reminder], after, NOW).publish).toHaveLength(0)
+  })
 })
 
 describe('ticking a dose, end to end through the diff', () => {
@@ -309,7 +330,9 @@ describe('ticking a dose, end to end through the diff', () => {
 
   it('takes the reminder away once the slot is answered', () => {
     const before = planned(db([m]))
-    const ledger: Ledger = Object.fromEntries(before.map((r) => [r.id, { at: r.at, body: r.body }]))
+    const ledger: Ledger = Object.fromEntries(
+      before.map((r) => [r.id, { at: r.at, body: r.body, shape: MESSAGE_SHAPE }]),
+    )
     const after = planned(db([m], logged(m, '2026-09-22', 'after-lunch', 'taken')))
     const { cancel, publish } = reconcile(after, ledger, NOW)
     expect(cancel).toEqual(['d2026-09-22-after-lunch'])
@@ -318,14 +341,18 @@ describe('ticking a dose, end to end through the diff', () => {
 
   it('puts it back when the tick is undone', () => {
     const ticked = planned(db([m], logged(m, '2026-09-22', 'after-lunch', 'taken')))
-    const ledger: Ledger = Object.fromEntries(ticked.map((r) => [r.id, { at: r.at, body: r.body }]))
+    const ledger: Ledger = Object.fromEntries(
+      ticked.map((r) => [r.id, { at: r.at, body: r.body, shape: MESSAGE_SHAPE }]),
+    )
     const { publish } = reconcile(planned(db([m])), ledger, NOW)
     expect(publish.map((r) => r.id)).toEqual(['d2026-09-22-after-lunch'])
   })
 
   it('corrects the count when a medicine joins the slot', () => {
     const before = planned(db([m]))
-    const ledger: Ledger = Object.fromEntries(before.map((r) => [r.id, { at: r.at, body: r.body }]))
+    const ledger: Ledger = Object.fromEntries(
+      before.map((r) => [r.id, { at: r.at, body: r.body, shape: MESSAGE_SHAPE }]),
+    )
     const { publish, cancel } = reconcile(planned(db([m, daily('Amoxicillin', ['after-lunch'])])), ledger, NOW)
     expect(cancel).toHaveLength(0)
     expect(publish.every((r) => r.body === '2 doses due')).toBe(true)
