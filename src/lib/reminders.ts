@@ -18,6 +18,13 @@ export const REMINDER_HORIZON_DAYS = 3
 /** ntfy's other end: a delay under ten seconds is refused too. */
 export const MIN_LEAD_SECONDS = 10
 
+/**
+ * Where a reminder's tap lands. Here rather than beside the screen that draws
+ * it, so that the transport can address it without a lib reaching up into a
+ * screen for a string.
+ */
+export const REMINDER_PATH = '/reminder'
+
 const DAY_MS = 24 * 60 * 60 * 1000
 
 /**
@@ -35,8 +42,23 @@ export interface Reminder {
   body: string
 }
 
+/**
+ * Everything about the message that is not its time or its words.
+ *
+ * Bump this whenever what gets published changes shape — a different click
+ * target, a new header, a different title. The ledger records it alongside each
+ * booking, so a booking made by an older build stops matching and is
+ * republished once. Without it the diff can only see `at` and `body`, and a
+ * change to any other part of the message is invisible: every reminder already
+ * on the server keeps the old shape until it fires, which for this feature is
+ * up to three days of notifications built by the previous build.
+ *
+ * 2 — the tap lands on `/reminder` rather than on the app's front door.
+ */
+export const MESSAGE_SHAPE = 2
+
 /** What we believe is currently booked, by address. */
-export type Ledger = Record<string, { at: string; body: string }>
+export type Ledger = Record<string, { at: string; body: string; shape?: number }>
 
 export interface Reconciliation {
   /** New, or booked with the wrong time or wording. */
@@ -133,7 +155,12 @@ export function reconcile(
   const wanted = new Map(planned.map((r) => [r.id, r]))
   const publish = planned.filter((r) => {
     const booked = ledger[r.id]
-    return !booked || booked.at !== r.at || booked.body !== r.body
+    if (!booked) return true
+    // An entry written before shapes were recorded has no `shape` at all, which
+    // is exactly the case that needs republishing, so undefined failing this
+    // comparison is the point rather than an oversight.
+    if (booked.shape !== MESSAGE_SHAPE) return true
+    return booked.at !== r.at || booked.body !== r.body
   })
 
   const cancel: string[] = []

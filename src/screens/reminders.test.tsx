@@ -31,6 +31,7 @@ let fetched: ReturnType<typeof vi.fn>
 beforeEach(() => {
   importDatabase(JSON.stringify({ version: 1, medicines: [], log: {} }))
   localStorage.removeItem('dosely.reminders')
+  localStorage.removeItem('dosely.reminders.booked')
   fetched = vi.fn().mockResolvedValue({ ok: true })
   vi.stubGlobal('fetch', fetched)
 })
@@ -156,6 +157,64 @@ describe('the test notification', () => {
     await turnOn(user)
     await user.click(screen.getByRole('button', { name: /Send a test/ }))
     expect(await screen.findByText(/Could not reach the server/)).toBeTruthy()
+  })
+})
+
+describe('syncing by hand', () => {
+  // The automatic sync is invisible by design — it sends nothing when nothing
+  // has changed — so without this there is no way to tell a healthy sync from
+  // one that has been failing quietly for days.
+  it('books what is due and says how many are set', async () => {
+    addMedicine({
+      name: 'Metformin',
+      slots: ['after-breakfast', 'after-dinner'],
+      repeatEveryDays: 1,
+      anchorDate: now,
+      durationValue: 30,
+      durationUnit: 'days',
+    })
+    const user = userEvent.setup()
+    open()
+    await turnOn(user)
+    await user.click(screen.getByRole('button', { name: /Sync now/ }))
+    expect(await screen.findByText(/reminders set\./)).toBeTruthy()
+  })
+
+  it('says so plainly when there is nothing due', async () => {
+    const user = userEvent.setup()
+    open()
+    await turnOn(user)
+    await user.click(screen.getByRole('button', { name: /Sync now/ }))
+    expect(await screen.findByText(/Nothing due in the next three days/)).toBeTruthy()
+  })
+
+  it('says it will try again rather than pretending it worked', async () => {
+    addMedicine({
+      name: 'Metformin',
+      slots: ['after-breakfast', 'after-dinner'],
+      repeatEveryDays: 1,
+      anchorDate: now,
+      durationValue: 30,
+      durationUnit: 'days',
+    })
+    const user = userEvent.setup()
+    open()
+    await turnOn(user)
+    fetched.mockRejectedValue(new TypeError('Failed to fetch'))
+    await user.click(screen.getByRole('button', { name: /Sync now/ }))
+    expect(await screen.findByText(/try again next time you open the app/)).toBeTruthy()
+  })
+
+  it('is not offered while reminders are off', () => {
+    open()
+    expect(screen.queryByRole('button', { name: /Sync now/ })).toBeNull()
+  })
+
+  it('names the date the booked reminders run through', async () => {
+    const user = userEvent.setup()
+    open()
+    await turnOn(user)
+    expect(screen.getByText(/Reminders are set through/)).toBeTruthy()
   })
 })
 

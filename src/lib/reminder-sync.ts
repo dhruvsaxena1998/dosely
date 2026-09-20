@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { useToday } from '@/lib/dates'
 import { cancel, publish, type NtfyConfig } from '@/lib/ntfy'
 import { reminderSettings, useReminderSettings } from '@/lib/reminder-settings'
-import { plannedReminders, reconcile, type Ledger } from '@/lib/reminders'
+import { MESSAGE_SHAPE, plannedReminders, reconcile, type Ledger } from '@/lib/reminders'
 import { getDatabase, useDatabase } from '@/lib/store'
 
 /**
@@ -28,6 +28,20 @@ const MAX_BATCH = 30
  * navigation away from the form.
  */
 const DEBOUNCE_MS = 1000
+
+/**
+ * What a run did. Returned so that a person who pressed Sync gets an answer
+ * rather than a button that flickers — and so the one number worth knowing,
+ * how many reminders are actually booked, can be shown without asking ntfy.
+ */
+export interface SyncResult {
+  published: number
+  cancelled: number
+  /** How many are on the server afterwards, as far as the ledger knows. */
+  booked: number
+  /** False when something did not land, so the ledger and the server may differ. */
+  ok: boolean
+}
 
 export function readLedger(): Ledger {
   try {
@@ -63,14 +77,15 @@ function writeLedger(ledger: Ledger) {
  * far it got. A failure leaves that entry alone, which is what makes the retry
  * automatic: the next run recomputes the same diff and tries the same request.
  */
-export async function syncReminders(now: Date = new Date()): Promise<void> {
+export async function syncReminders(now: Date = new Date()): Promise<SyncResult> {
   const settings = reminderSettings()
   const ledger = readLedger()
+  const nothingToDo: SyncResult = { published: 0, cancelled: 0, booked: 0, ok: true }
 
   // Off, and nothing booked. The overwhelming majority of runs for anyone who
   // never turned this on, and they must cost nothing and touch no network.
-  if (!settings.enabled && Object.keys(ledger).length === 0) return
-  if (!settings.topic) return
+  if (!settings.enabled && Object.keys(ledger).length === 0) return nothingToDo
+  if (!settings.topic) return nothingToDo
 
   const config: NtfyConfig = { server: settings.server, topic: settings.topic }
   // Switched off, `plannedReminders` returns nothing, and every booked address
@@ -88,27 +103,48 @@ export async function syncReminders(now: Date = new Date()): Promise<void> {
   if (drop.length > 0) writeLedger(next)
 
   let spent = 0
+  let published = 0
+  let cancelled = 0
+  let ok = true
+  const done = () => ({ published, cancelled, booked: Object.keys(next).length, ok })
+
   for (const id of toCancel) {
-    if (spent >= MAX_BATCH) break
+    if (spent >= MAX_BATCH) {
+      ok = false
+      break
+    }
     spent += 1
     const result = await cancel(config, id)
     // Every request after a 429 fails too, so stopping is the difference
     // between one wasted request and thirty.
-    if (result === 'throttled') return
-    if (result === 'failed') continue
+    if (result === 'throttled') return { ...done(), ok: false }
+    if (result === 'failed') {
+      ok = false
+      continue
+    }
     delete next[id]
+    cancelled += 1
     writeLedger(next)
   }
 
   for (const reminder of toPublish) {
-    if (spent >= MAX_BATCH) break
+    if (spent >= MAX_BATCH) {
+      ok = false
+      break
+    }
     spent += 1
     const result = await publish(config, reminder)
-    if (result === 'throttled') return
-    if (result === 'failed') continue
-    next[reminder.id] = { at: reminder.at, body: reminder.body }
+    if (result === 'throttled') return { ...done(), ok: false }
+    if (result === 'failed') {
+      ok = false
+      continue
+    }
+    next[reminder.id] = { at: reminder.at, body: reminder.body, shape: MESSAGE_SHAPE }
+    published += 1
     writeLedger(next)
   }
+
+  return done()
 }
 
 /**

@@ -64,8 +64,9 @@ export function Settings() {
           <p className="mb-3 text-xs leading-relaxed text-muted-foreground">
             Dosely has no server, so it cannot buzz you itself. It books the next three days of
             reminders with ntfy, and tops them up every time you open the app — which means they
-            run out if you stay away for three days. Tapping one opens Dosely and sets the next
-            three.
+            run out if you stay away for three days. On iPhone, tapping a reminder opens Safari
+            rather than this app, which cannot see your medicines — so open Dosely from your home
+            screen to tick the dose and set the next three.
           </p>
           <Reminders />
         </section>

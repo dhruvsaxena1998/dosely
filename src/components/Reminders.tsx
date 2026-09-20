@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Check, Copy, Send } from 'lucide-react'
+import { Check, Copy, RefreshCw, Send } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
@@ -13,6 +13,7 @@ import {
   useReminderSettings,
 } from '@/lib/reminder-settings'
 import { REMINDER_HORIZON_DAYS, slotsInUse } from '@/lib/reminders'
+import { syncReminders } from '@/lib/reminder-sync'
 import { slotLabel } from '@/lib/slots'
 import { useDatabase } from '@/lib/store'
 import { TOGGLE_ITEM } from '@/lib/ui'
@@ -36,6 +37,8 @@ export function Reminders() {
   const slots = useMemo(() => slotsInUse(db, now), [db, now])
   const [test, setTest] = useState<Test>('idle')
   const [copied, setCopied] = useState(false)
+  const [syncing, setSyncing] = useState(false)
+  const [synced, setSynced] = useState<string | null>(null)
 
   function toggle(on: boolean) {
     // The topic is minted once and then kept. Turning reminders off and on
@@ -54,6 +57,31 @@ export function Reminders() {
     setTest('sending')
     const result = await sendTest({ server: settings.server, topic: settings.topic })
     setTest(result === 'ok' ? 'sent' : 'failed')
+  }
+
+  /**
+   * The same run that happens on its own whenever the app is open, on a press.
+   *
+   * Worth a button because the automatic one is invisible by design: it sends
+   * nothing when nothing has changed, so there is otherwise no way to tell a
+   * healthy sync from one that has been failing quietly for days.
+   */
+  async function sync() {
+    setSyncing(true)
+    setSynced(null)
+    const result = await syncReminders()
+    setSyncing(false)
+    if (!result.ok) {
+      setSynced('Could not reach the server. It will try again next time you open the app.')
+      return
+    }
+    if (result.booked === 0) {
+      setSynced('Nothing due in the next three days.')
+      return
+    }
+    const changed = result.published > 0 || result.cancelled > 0
+    const many = result.booked === 1 ? '1 reminder' : `${result.booked} reminders`
+    setSynced(changed ? `Updated. ${many} set.` : `Already up to date. ${many} set.`)
   }
 
   return (
@@ -172,7 +200,18 @@ export function Reminders() {
             </p>
           </Field>
 
-          <ReminderHorizon through={shiftKey(now, REMINDER_HORIZON_DAYS)} />
+          <Field label="Booked reminders">
+            <div className="flex items-center gap-3">
+              <Button size="sm" variant="outline" onClick={sync} disabled={syncing}>
+                <RefreshCw className={cn('size-3.5', syncing && 'animate-spin')} />
+                {syncing ? 'Syncing' : 'Sync now'}
+              </Button>
+            </div>
+            {synced ? (
+              <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{synced}</p>
+            ) : null}
+            <ReminderHorizon through={shiftKey(now, REMINDER_HORIZON_DAYS)} />
+          </Field>
         </>
       ) : null}
     </div>
@@ -186,7 +225,7 @@ export function Reminders() {
  */
 function ReminderHorizon({ through }: { through: string }) {
   return (
-    <p className="text-xs leading-relaxed text-muted-foreground">
+    <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
       Reminders are set through <strong className="font-semibold text-foreground">{formatDay(through)}</strong>.
       Open Dosely before then to keep them going.
     </p>

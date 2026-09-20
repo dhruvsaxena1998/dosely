@@ -1,4 +1,4 @@
-import type { Reminder } from '@/lib/reminders'
+import { REMINDER_PATH, type Reminder } from '@/lib/reminders'
 
 /**
  * Where to publish, and under what name. The topic is not a channel so much as
@@ -15,13 +15,21 @@ function endpoint({ server, topic }: NtfyConfig): string {
 }
 
 /**
- * Where tapping the notification lands. The app's own origin, which matters
- * more than it looks: opening Dosely is what re-books the next three days, so
- * this is the thing that keeps the window from running out for anybody who
- * actually uses the reminders.
+ * Where tapping the notification lands.
+ *
+ * Not the app's front door, because whether a tap reaches the installed copy is
+ * the operating system's call and not ours: Android and desktop route an
+ * in-scope link to the installed app, and iOS cannot, since a home screen web
+ * app has no way to claim an https link. So on iOS this opens Safari, against
+ * its own separate storage, where Dosely has no medicines in it.
+ *
+ * `/reminder` is the page that knows that. Opened inside the app it steps
+ * aside to Today; opened in a browser it says what happened and points at the
+ * home screen, rather than showing someone an empty copy of their medicine
+ * list and letting them draw the obvious, wrong conclusion.
  */
 function clickTarget(): string {
-  return window.location.origin
+  return `${window.location.origin}${REMINDER_PATH}`
 }
 
 /**

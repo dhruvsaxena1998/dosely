@@ -232,12 +232,57 @@ tuned or worked around without running something ourselves.
 
 **So reminders lapse if you do not open Dosely for three days.** It is said in
 the Settings section as a rule, and under it as a fact — the date the booked
-reminders currently run through. In practice the window renews itself for anyone
-who uses it, because tapping a reminder opens the app and opening the app books
-the next three days. For anyone who stops, it goes quiet. That is the correct
-way for this to fail, and it is the honest shape of a reminder in an app with no
-server: it cannot outlive your attention by more than three days, so it does not
-pretend to.
+reminders currently run through. For anyone who stops opening it, the reminders
+go quiet. That is the correct way for this to fail, and it is the honest shape
+of a reminder in an app with no server: it cannot outlive your attention by more
+than three days, so it does not pretend to.
+
+**Tapping a reminder does not reliably reopen the app that sent it.** Whether
+the link reaches your installed copy is the operating system's decision, not
+ours. Android and desktop route an in-scope link to the installed app. **iOS
+cannot** — a home screen web app has no way to claim an `https` link, so Safari
+opens instead, and a home screen app and Safari keep **separate storage**. What
+opens there is a different, empty Dosely rather than a second window onto yours.
+
+Which is the worst thing this feature could do if left alone. Someone taps a
+reminder about their medicines and is shown a medicine list with nothing in it;
+the obvious conclusion is that the data is gone, and the obvious conclusion is
+wrong.
+
+So the tap does not land on the app's front door. It lands on **`/reminder`**, a
+page whose whole job is knowing where it is. Opened inside the app it steps
+aside to Today, because the tap already went where it was meant to. Opened in a
+browser it says plainly that this tab cannot see your medicines, that nothing
+has been lost, and that the icon on your home screen is the one holding them.
+Android additionally gets a button, because `intent://` asks the system who
+handles the URL and the installed app answers — a plain link would only navigate
+this browser, never leave it.
+
+The page sits **in front of the install gate** rather than behind it. Someone
+tapping a reminder has already installed the app, and meeting a door telling
+them to install it would be the app arguing with a notification it sent itself.
+
+On iOS, then, the three-day window is renewed by opening the app from the home
+screen, the way you would anyway.
+
+### Syncing by hand
+
+Settings carries a **Sync now** button, which runs the same reconciliation that
+happens on its own whenever the app is open, and says what it found: how many
+reminders are set, whether anything changed, or that the server could not be
+reached.
+
+It is there because the automatic sync is invisible by design. A healthy sync
+sends nothing, and so does one that has been failing quietly for days — from the
+outside they look identical. The button is the only way to ask.
+
+It is also what corrects a booking made by an older build. The ledger records
+the **shape** of each message alongside its time and its words, so when what
+gets published changes — a different click target, a new header — every booking
+already on the server stops matching and is republished once. Without that the
+diff could only see the time and the words, and the old message would keep
+arriving until it fired, which for this feature is up to three days of
+notifications built by the previous version of the app.
 
 One known cost. If you tick a dose while offline, the cancellation does not
 land, and the reminder arrives anyway for something you have already taken. The
@@ -247,8 +292,8 @@ smaller price than the alternative.
 
 The notification is a **door, not a control**. ntfy's action buttons can fire an
 HTTP request, but there is nothing here to fire it at, so there is no Taken
-button that would silently record nothing. Tapping it opens Dosely, which is
-where the dose gets ticked and where the next three days get booked.
+button that would silently record nothing. The dose gets ticked in the app, and
+which app a tap actually opens is covered above.
 
 ## The model
 
