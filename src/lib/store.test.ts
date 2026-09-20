@@ -1,6 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { DateDurationUnit } from '@/lib/dates'
 import { courseEndFrom, shiftKey, today } from '@/lib/dates'
-import { adherenceFor, courseEnd, courseStatus, groupMedicines, groupSpan, isDeleted, logKey, scheduledSlotsOn } from '@/lib/schedule'
+import {
+  adherenceFor,
+  canResume,
+  courseEnd,
+  courseStatus,
+  doseHistory,
+  groupMedicines,
+  groupSpan,
+  isDeleted,
+  logKey,
+  scheduledSlotsOn,
+} from '@/lib/schedule'
 import {
   addMedicine,
   deleteMedicine,
@@ -227,7 +239,8 @@ describe('resuming a stopped course', () => {
 
   it('ends the course when it was always going to end', () => {
     const { id, input } = stoppedDaysAgo()
-    const end = courseEndFrom(input.anchorDate, input.durationValue, input.durationUnit)
+    // Every fixture in this block is measured in calendar, so the unit narrows.
+    const end = courseEndFrom(input.anchorDate, input.durationValue, input.durationUnit as DateDurationUnit)
 
     resumeMedicine(id)
 
@@ -456,5 +469,107 @@ describe('answering several doses at once', () => {
     setDoses(now, [])
     expect(write).not.toHaveBeenCalled()
     write.mockRestore()
+  })
+})
+
+describe('a course counted in doses', () => {
+  /** Ten tablets, twice a day, started five days ago — so half the strip is gone. */
+  const strip: MedicineInput = {
+    name: 'Amoxicillin 500MG',
+    slots: ['after-breakfast', 'after-dinner'],
+    repeatEveryDays: 1,
+    anchorDate: shiftKey(now, -5),
+    durationValue: 10,
+    durationUnit: 'doses',
+  }
+
+  function started(over: Partial<MedicineInput> = {}) {
+    const id = 'grp-counted'
+    const input = { ...strip, ...over }
+    importDatabase(
+      JSON.stringify({
+        version: 1,
+        log: {},
+        medicines: [
+          {
+            ...input,
+            id: 'rec-1',
+            groupId: id,
+            effectiveFrom: input.anchorDate,
+            createdAt: '2026-01-01T00:00:00.000Z',
+          },
+        ],
+      }),
+    )
+    return { id, input }
+  }
+
+  it('hands a fork what is left of the count, not the whole strip again', () => {
+    const { id, input } = started({ durationValue: 20 })
+    updateMedicine(id, { ...input, durationValue: 20, slots: ['after-breakfast'] })
+
+    const forked = records(id).find((m) => m.effectiveFrom === now)!
+    // Ten of the twenty were scheduled across the five days before today.
+    expect(forked.durationValue).toBe(10)
+    expect(forked.durationUnit).toBe('doses')
+    expect(doseHistory(group(id))).toHaveLength(20)
+  })
+
+  it('takes a number the user changed at its word', () => {
+    const { id, input } = started()
+    updateMedicine(id, { ...input, durationValue: 20, slots: ['after-breakfast'] })
+
+    const forked = records(id).find((m) => m.effectiveFrom === now)!
+    expect(forked.durationValue).toBe(20)
+  })
+
+  it('forks a course with nothing left rather than one with less than nothing', () => {
+    const { id, input } = started()
+    updateMedicine(id, { ...input, slots: ['after-breakfast'] })
+
+    const forked = records(id).find((m) => m.effectiveFrom === now)!
+    expect(forked.durationValue).toBe(0)
+    expect(scheduledSlotsOn(group(id), now)).toEqual([])
+    expect(courseStatus(group(id), now)).toBe('finished')
+  })
+
+  it('leaves a course measured in calendar alone', () => {
+    const id = addMedicine(calcium)
+    updateMedicine(id, { ...calcium, slots: ['after-dinner'] })
+
+    const forked = records(id).find((m) => m.effectiveFrom === now)!
+    expect(forked.durationValue).toBe(calcium.durationValue)
+  })
+
+  it('resumes with the doses that are left, and carries them past the old end', () => {
+    const { id } = started({ durationValue: 20 })
+    stopMedicine(id)
+    resumeMedicine(id)
+
+    const resumed = group(id).current
+    expect(resumed.durationValue).toBe(10)
+    // Ten doses two a day from today, so the course now ends five days out
+    // rather than where the first version would have run out.
+    expect(courseEnd(resumed)).toBe(shiftKey(now, 5))
+    expect(doseHistory(group(id))).toHaveLength(20)
+  })
+
+  it('offers a resume while the strip has anything in it', () => {
+    const { id } = started({ durationValue: 20 })
+    stopMedicine(id)
+    expect(canResume(group(id), now)).toBe(true)
+
+    resumeMedicine(id)
+    // Wind the count down to nothing and the offer goes with it.
+    updateMedicine(id, { ...strip, durationValue: 0, slots: ['after-breakfast'] })
+    expect(canResume(group(id), now)).toBe(false)
+  })
+
+  it('brings the weekdays back with a resumed course', () => {
+    const { id } = started({ repeatEveryDays: 1, weekdays: [1, 3, 5] as Weekday[], slots: ['anytime'] })
+    stopMedicine(id)
+    resumeMedicine(id)
+
+    expect(group(id).current.weekdays).toEqual([1, 3, 5])
   })
 })

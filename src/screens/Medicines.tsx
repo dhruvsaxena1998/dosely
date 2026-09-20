@@ -21,7 +21,7 @@ import { courseActions } from '@/lib/actions'
 import { courseFill } from '@/lib/calendar'
 import { copyText } from '@/lib/clipboard'
 import { relativeDayLabel, useToday } from '@/lib/dates'
-import { describeDuration, describeGroupSpan, describeRepeat, describeTally } from '@/lib/describe'
+import { describeGroupSpan, describeLength, describeRepeat, describeTally } from '@/lib/describe'
 import { loadExamples } from '@/lib/examples'
 import { FILL_POCKET } from '@/lib/outcome'
 import { prescriptionText } from '@/lib/prescription'
@@ -363,7 +363,7 @@ function MedicineCard({
             className="mt-1"
             parts={[
               describeRepeat(m),
-              describeDuration(m.durationValue, m.durationUnit),
+              describeLength(group),
               describeGroupSpan(group),
             ]}
           />

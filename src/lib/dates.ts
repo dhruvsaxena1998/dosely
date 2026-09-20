@@ -4,7 +4,17 @@ import { addDays, addMonths, differenceInCalendarDays, format, isValid, parseISO
 /** A calendar date in the user's local timezone, as `YYYY-MM-DD`. */
 export type DateKey = string
 
-export type DurationUnit = 'days' | 'weeks' | 'months'
+/** A course length written as a stretch of calendar. */
+export type DateDurationUnit = 'days' | 'weeks' | 'months'
+
+/**
+ * How long a course runs. Three of these are calendar spans and one is a count:
+ * `doses` ends the course when it has scheduled the number it was given, which
+ * is how a strip of ten tablets and a block of ten sessions are prescribed. A
+ * count depends on the slots and the repeat, so where it lands is worked out in
+ * `schedule.ts` rather than here.
+ */
+export type DurationUnit = DateDurationUnit | 'doses'
 
 /**
  * A dose swallowed at 1am belongs to the night before, not to the new calendar
@@ -151,11 +161,14 @@ export function maxKey(a: DateKey, b: DateKey): DateKey {
 }
 
 /**
- * The exclusive end of a course. Half-open on purpose: a 5 week weekly course
- * starting 1 Sep ends before 6 Oct, so it produces doses on 1, 8, 15, 22 and 29
- * Sep. Five doses, not six.
+ * The exclusive end of a course measured in calendar. Half-open on purpose: a 5
+ * week weekly course starting 1 Sep ends before 6 Oct, so it produces doses on
+ * 1, 8, 15, 22 and 29 Sep. Five doses, not six.
+ *
+ * A course counted in doses has no length until you know its schedule, so its
+ * end is `courseEnd` in `schedule.ts` and never this.
  */
-export function courseEndFrom(start: DateKey, value: number, unit: DurationUnit): DateKey {
+export function courseEndFrom(start: DateKey, value: number, unit: DateDurationUnit): DateKey {
   const d = fromKey(start)
   if (unit === 'days') return toKey(addDays(d, value))
   if (unit === 'weeks') return toKey(addDays(d, value * 7))
