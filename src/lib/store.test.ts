@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DateDurationUnit } from '@/lib/dates'
 import { courseEndFrom, shiftKey, today } from '@/lib/dates'
+import { describeLength } from '@/lib/describe'
 import {
   adherenceFor,
   canResume,
@@ -16,6 +17,7 @@ import {
 import {
   addMedicine,
   deleteMedicine,
+  finishMedicine,
   getDatabase,
   importDatabase,
   purgeMedicine,
@@ -565,11 +567,97 @@ describe('a course counted in doses', () => {
     expect(canResume(group(id), now)).toBe(false)
   })
 
+  it('ends with today when a counted course is finished early', () => {
+    const { id } = started({ durationValue: 20, anchorDate: shiftKey(now, -2) })
+    finishMedicine(id)
+
+    // Today is the last day of it, both doses included.
+    expect(scheduledSlotsOn(group(id), now)).toEqual(['after-breakfast', 'after-dinner'])
+    expect(scheduledSlotsOn(group(id), shiftKey(now, 1))).toEqual([])
+    expect(courseStatus(group(id), now)).toBe('finished')
+    // Three days of two. The fourteen doses left in the strip are outside the
+    // course now, so they are in no denominator and are never missed.
+    expect(doseHistory(group(id))).toHaveLength(6)
+    expect(adherenceFor(getDatabase(), group(id), now).total).toBe(6)
+    // And the length it prints is what it held rather than what was written,
+    // which is the same answer the span line has always given.
+    expect(describeLength(group(id))).toBe('6 doses')
+  })
+
   it('brings the weekdays back with a resumed course', () => {
     const { id } = started({ repeatEveryDays: 1, weekdays: [1, 3, 5] as Weekday[], slots: ['anytime'] })
     stopMedicine(id)
     resumeMedicine(id)
 
     expect(group(id).current.weekdays).toEqual([1, 3, 5])
+  })
+})
+
+describe('finishing a course early', () => {
+  /** Twenty-one days prescribed, a fortnight taken, and the doctor says stop. */
+  const course: MedicineInput = {
+    name: 'Amoxicillin 500MG',
+    slots: ['after-breakfast'],
+    repeatEveryDays: 1,
+    anchorDate: shiftKey(now, -13),
+    durationValue: 21,
+    durationUnit: 'days',
+  }
+
+  it('ends the course with today rather than before it', () => {
+    const id = addMedicine(course)
+    finishMedicine(id)
+
+    expect(records(id)[0].closedOn).toBe(shiftKey(now, 1))
+    expect(records(id)[0].closedBy).toBe('completed')
+    expect(scheduledSlotsOn(group(id), now)).toEqual(['after-breakfast'])
+    expect(scheduledSlotsOn(group(id), shiftKey(now, 1))).toEqual([])
+  })
+
+  it('leaves a stop meaning exactly what it meant', () => {
+    const id = addMedicine(course)
+    stopMedicine(id)
+
+    expect(records(id)[0].closedOn).toBe(now)
+    expect(records(id)[0].closedBy).toBe('stopped')
+    expect(courseStatus(group(id), now)).toBe('stopped')
+  })
+
+  it('reads as finished from the day it was finished, not the day after', () => {
+    const id = addMedicine(course)
+    finishMedicine(id)
+
+    expect(courseStatus(group(id), now)).toBe('finished')
+    expect(courseStatus(group(id), shiftKey(now, 1))).toBe('finished')
+    expect(canResume(group(id), now)).toBe(false)
+  })
+
+  it('keeps the dose ticked this morning inside the course', () => {
+    const id = addMedicine(course)
+    setDose(id, now, 'after-breakfast', 'taken')
+    finishMedicine(id)
+
+    expect(doseHistory(group(id)).some((d) => d.date === now)).toBe(true)
+    expect(adherenceFor(getDatabase(), group(id), now).taken).toBe(1)
+  })
+
+  it('counts the fourteen days it ran and not the seven it did not', () => {
+    const id = addMedicine(course)
+    finishMedicine(id)
+
+    // Fourteen days in the denominator, and the last of them is today, which is
+    // still owed rather than missed.
+    const tally = adherenceFor(getDatabase(), group(id), now)
+    expect(tally).toMatchObject({ total: 14, missed: 13, pending: 1 })
+  })
+
+  it('does not reopen the course when it is edited afterwards', () => {
+    const id = addMedicine(course)
+    finishMedicine(id)
+    updateMedicine(id, { ...course, slots: ['after-dinner'] })
+
+    expect(group(id).current.closedBy).toBe('completed')
+    expect(group(id).current.closedOn).toBe(shiftKey(now, 1))
+    expect(courseStatus(group(id), now)).toBe('finished')
   })
 })

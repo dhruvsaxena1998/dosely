@@ -3,12 +3,14 @@ import type { SlotId } from '@/lib/slots'
 import type { Weekday } from '@/lib/weekdays'
 
 /**
- * Why a version is closed. The user ending the course and an edit forking a new
- * version behind this one both close a record, and they mean opposite things:
- * one ends the medicine, the other is invisible to the user. Kept apart on the
- * record so that a rule about one cannot accidentally be a rule about the other.
+ * Why a version is closed. Three different things close a record and they mean
+ * different things to the user: `stopped` is coming off a medicine and leaves
+ * the door open, `completed` is a course ended early because it was done and
+ * closes it, and `superseded` is an edit forking a new version behind this one
+ * and is invisible. Kept apart on the record so that a rule about one cannot
+ * accidentally be a rule about another.
  */
-export type Closure = 'stopped' | 'superseded'
+export type Closure = 'stopped' | 'completed' | 'superseded'
 
 /**
  * One version of a medicine. Editing anything that changes the schedule closes

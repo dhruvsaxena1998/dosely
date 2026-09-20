@@ -276,9 +276,26 @@ export function scheduleHorizon(db: Database, ref: DateKey = today()): DateKey {
 
 export type CourseStatus = 'upcoming' | 'active' | 'stopped' | 'finished'
 
+/**
+ * The day a course was finished early, and nothing for a course that was not.
+ *
+ * Finishing says today was the last day of the course, so the window it writes
+ * closes after today and the day it was pressed on is the day before it.
+ */
+function completedOn(g: MedicineGroup): DateKey | undefined {
+  const closed = g.current.closedOn
+  if (!closed || closureOf(g, g.current) !== 'completed') return undefined
+  return shiftKey(closed, -1)
+}
+
 export function courseStatus(g: MedicineGroup, ref: DateKey = today()): CourseStatus {
   const { start, end } = groupSpan(g)
   if (ref < start) return 'upcoming'
+  // A course finished early is finished from the moment it was finished, and its
+  // window still holds the rest of that day. The two are not in conflict: today's
+  // doses are part of the course, and the course is over.
+  const done = completedOn(g)
+  if (done && ref >= done) return 'finished'
   if (ref < end) return 'active'
   // Past its end, so it either ran out or was ended early. Which of those it was
   // is a fact the record states rather than something inferred from the date —
@@ -298,6 +315,9 @@ export function courseStatus(g: MedicineGroup, ref: DateKey = today()): CourseSt
  * nothing to resume into — a version opened today would own an empty window —
  * so a course stopped and then left alone until its span ran out is asked to be
  * started again rather than resumed.
+ *
+ * What is left of a counted course is doses rather than days, and no amount of
+ * waiting spends those, so the same question is asked of the strip instead.
  */
 export function canResume(g: MedicineGroup, ref: DateKey = today()): boolean {
   if (courseStatus(g, ref) !== 'stopped') return false

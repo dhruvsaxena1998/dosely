@@ -240,6 +240,21 @@ again, so dropping the lunchtime dose halfway through twenty tablets schedules t
 remaining ten at the new rate. Typing a different number is read as a new
 prescription and taken at its word.
 
+### Ending a course early
+
+Two presses end a course before it runs out, and the difference between them is
+whether today counts. **Finish** says today was the last day: the course ends
+with today, this morning's tick stays inside it, tonight's dose is still there to
+take, and the card reads Done. **Stop** says the course does not include today at
+all — it stops appearing immediately, reads as Stopped, and offers a Resume.
+
+The distinction is not cosmetic. A prescription written for three weeks and ended
+at a fortnight because it worked is a completed course, and offering to resume a
+medicine you were told to come off is the app giving advice it has no business
+giving. Either way the days that never happened are outside the window, so they
+sit in no denominator and are never marked missed: fourteen of fourteen, not
+fourteen of twenty-one.
+
 ### The log
 
 `taken` and `skipped` are the only things ever written. **Missed is derived**: a

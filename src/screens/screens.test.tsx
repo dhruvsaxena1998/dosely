@@ -923,3 +923,86 @@ describe('the medicine form, counted in doses', () => {
     expect(within(card).getByText(`${formatShort(now)} to ${formatWithYear(shiftKey(now, 3))}`)).toBeTruthy()
   })
 })
+
+describe('finishing a course early', () => {
+  function underWay() {
+    return addMedicine({
+      name: 'Amoxicillin 500MG',
+      slots: ['after-breakfast'],
+      repeatEveryDays: 1,
+      anchorDate: shiftKey(now, -13),
+      durationValue: 21,
+      durationUnit: 'days',
+    })
+  }
+
+  it('asks what happens to today before it ends the course', async () => {
+    const user = userEvent.setup()
+    underWay()
+    at('/medicines', <Medicines />, '/medicines')
+
+    await user.click(screen.getByRole('button', { name: 'Finish' }))
+
+    expect(screen.getByText('Finish this course?')).toBeTruthy()
+    expect(screen.getByText(/ends with today/)).toBeTruthy()
+    expect(screen.getByText(/counts as completed rather than cut short/)).toBeTruthy()
+  })
+
+  it('leaves the course alone when the dialog is cancelled', async () => {
+    const user = userEvent.setup()
+    const id = underWay()
+    at('/medicines', <Medicines />, '/medicines')
+
+    await user.click(screen.getByRole('button', { name: 'Finish' }))
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    expect(getDatabase().medicines[0].closedOn).toBeUndefined()
+    expect(courseStatus(groupMedicines(getDatabase().medicines)[0], now)).toBe('active')
+    expect(id).toBeTruthy()
+  })
+
+  it('files it as done, with a way to start it again rather than resume it', async () => {
+    const user = userEvent.setup()
+    underWay()
+    at('/medicines', <Medicines />, '/medicines')
+
+    await user.click(screen.getByRole('button', { name: 'Finish' }))
+    await user.click(screen.getByRole('button', { name: 'Finish it' }))
+    await openArchive(user)
+
+    const card = screen.getByText('Amoxicillin 500MG').closest('article')!
+    // Today's dose is still owed, and saying so is more use than a Done badge.
+    expect(within(card).getByText('Due Today')).toBeTruthy()
+    expect(within(card).queryByText('Stopped')).toBeNull()
+    expect(within(card).getByRole('link', { name: /start again/i })).toBeTruthy()
+    expect(within(card).queryByRole('button', { name: /resume/i })).toBeNull()
+  })
+
+  it('says Done once the last day it kept has gone by', async () => {
+    const user = userEvent.setup()
+    const id = underWay()
+    setDose(id, now, 'after-breakfast', 'taken')
+    at('/medicines', <Medicines />, '/medicines')
+
+    await user.click(screen.getByRole('button', { name: 'Finish' }))
+    await user.click(screen.getByRole('button', { name: 'Finish it' }))
+    await openArchive(user)
+
+    const card = screen.getByText('Amoxicillin 500MG').closest('article')!
+    expect(within(card).getByText('Done')).toBeTruthy()
+  })
+
+  it('keeps Stop, and keeps it meaning something else', async () => {
+    const user = userEvent.setup()
+    underWay()
+    at('/medicines', <Medicines />, '/medicines')
+
+    await user.click(screen.getByRole('button', { name: 'Stop' }))
+    await user.click(screen.getByRole('button', { name: 'Stop it' }))
+    await openArchive(user)
+
+    const card = screen.getByText('Amoxicillin 500MG').closest('article')!
+    expect(within(card).getByText('Stopped')).toBeTruthy()
+    expect(within(card).getByRole('button', { name: /resume/i })).toBeTruthy()
+  })
+})

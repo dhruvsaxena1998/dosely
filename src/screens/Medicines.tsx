@@ -30,6 +30,7 @@ import { adherenceFor, courseStatus, groupMedicines, nextOpenDate } from '@/lib/
 import { slotLabel, sortSlots } from '@/lib/slots'
 import {
   deleteMedicine,
+  finishMedicine,
   purgeMedicine,
   restoreMedicine,
   resumeMedicine,
@@ -39,11 +40,58 @@ import {
 import { cn } from '@/lib/utils'
 import type { Database } from '@/types'
 
-type Confirm =
-  | { kind: 'stop'; group: MedicineGroup }
-  | { kind: 'delete'; group: MedicineGroup }
-  | { kind: 'purge'; group: MedicineGroup }
-  | null
+type ConfirmKind = 'finish' | 'stop' | 'delete' | 'purge'
+
+type Confirm = { kind: ConfirmKind; group: MedicineGroup } | null
+
+/**
+ * What each confirmation asks, and what it runs when the answer is yes.
+ *
+ * One row per press rather than a ternary per line. The four differ in their
+ * title, their sentence, their button and the call behind it, and four separate
+ * chains answering the same question are four chances to pair the wrong ones.
+ */
+const CONFIRMS: Record<
+  ConfirmKind,
+  {
+    title: string
+    describe: (name: string) => string
+    action: string
+    destructive?: boolean
+    run: (groupId: string) => void
+  }
+> = {
+  // The difference from Stop is one day, so the sentence is about that day.
+  finish: {
+    title: 'Finish this course?',
+    describe: (name) =>
+      `${name} ends with today. Today's doses are still yours to tick, and the days after it drop off. It counts as completed rather than cut short.`,
+    action: 'Finish it',
+    run: finishMedicine,
+  },
+  stop: {
+    title: 'Stop this course?',
+    describe: (name) =>
+      `${name} stops appearing from today. Anything you already ticked stays in your history.`,
+    action: 'Stop it',
+    run: stopMedicine,
+  },
+  delete: {
+    title: 'Delete this medicine?',
+    describe: (name) =>
+      `${name} disappears from Today and Medicines. Its history is kept, and you can restore it from the archive.`,
+    action: 'Delete',
+    run: deleteMedicine,
+  },
+  purge: {
+    title: 'Delete forever?',
+    describe: (name) =>
+      `${name} and its whole history — every tick, skip and miss — are removed for good. This cannot be undone.`,
+    action: 'Delete forever',
+    destructive: true,
+    run: purgeMedicine,
+  },
+}
 
 /**
  * How many medicines it takes before a search field earns the space it costs.
@@ -64,6 +112,7 @@ export function Medicines() {
   const db = useDatabase()
   const now = useToday()
   const [confirm, setConfirm] = useState<Confirm>(null)
+  const asked = confirm ? CONFIRMS[confirm.kind] : undefined
   // A lens on the list rather than a setting on it, so both live in view state
   // and both are gone by the time you come back to the screen.
   const [query, setQuery] = useState('')
@@ -199,34 +248,22 @@ export function Medicines() {
       <AlertDialog open={confirm !== null} onOpenChange={(open) => !open && setConfirm(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>
-              {confirm?.kind === 'stop'
-                ? 'Stop this course?'
-                : confirm?.kind === 'purge'
-                  ? 'Delete forever?'
-                  : 'Delete this medicine?'}
-            </AlertDialogTitle>
+            <AlertDialogTitle>{asked?.title}</AlertDialogTitle>
             <AlertDialogDescription>
-              {confirm?.kind === 'stop'
-                ? `${confirm.group.current.name} stops appearing from today. Anything you already ticked stays in your history.`
-                : confirm?.kind === 'purge'
-                  ? `${confirm.group.current.name} and its whole history — every tick, skip and miss — are removed for good. This cannot be undone.`
-                  : `${confirm?.group.current.name} disappears from Today and Medicines. Its history is kept, and you can restore it from the archive.`}
+              {confirm && asked ? asked.describe(confirm.group.current.name) : null}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              variant={confirm?.kind === 'purge' ? 'destructive' : 'default'}
+              variant={asked?.destructive ? 'destructive' : 'default'}
               onClick={() => {
-                if (!confirm) return
-                if (confirm.kind === 'stop') stopMedicine(confirm.group.groupId)
-                else if (confirm.kind === 'purge') purgeMedicine(confirm.group.groupId)
-                else deleteMedicine(confirm.group.groupId)
+                if (!confirm || !asked) return
+                asked.run(confirm.group.groupId)
                 setConfirm(null)
               }}
             >
-              {confirm?.kind === 'stop' ? 'Stop it' : confirm?.kind === 'purge' ? 'Delete forever' : 'Delete'}
+              {asked?.action}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -453,6 +490,15 @@ function Action({
       return (
         <Button asChild size="sm" variant="ghost">
           <Link to={`/medicines/${group.groupId}/edit`}>Edit</Link>
+        </Button>
+      )
+    // Two ways out of a course under way, side by side, because which one it was
+    // is the difference between a record that reads as completed and one that
+    // reads as abandoned.
+    case 'finish':
+      return (
+        <Button size="sm" variant="ghost" onClick={() => onConfirm({ kind: 'finish', group })}>
+          Finish
         </Button>
       )
     case 'stop':

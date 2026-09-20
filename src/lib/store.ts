@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react'
 import type { DateKey } from '@/lib/dates'
-import { maxKey, today } from '@/lib/dates'
+import { maxKey, shiftKey, today } from '@/lib/dates'
 import type { SlotId } from '@/lib/slots'
 import { canResume, closureOf, dosesLeft, groupMedicines, logKey, recordWindow, sameSchedule } from '@/lib/schedule'
 import type { Database, DoseState, MedicineInput, MedicineRecord } from '@/types'
@@ -135,15 +135,17 @@ export function updateMedicine(groupId: string, input: MedicineInput) {
   // would hand the group a blank one — which is how editing a stopped course
   // used to restart it, and editing a deleted one used to bring it back.
   const closure = closureOf(groupMedicines(recordsOf(groupId))[0], current)
-  const stoppedOn = closure === 'stopped' ? current.closedOn : undefined
+  // Both of the closures the user makes carry across. A supersede does not: it
+  // describes the version being left behind, not the medicine.
+  const ended = closure === 'stopped' || closure === 'completed' ? closure : undefined
   const next: MedicineRecord = {
     ...input,
     durationValue: lengthFrom(current, input, forkFrom),
     id: newId(),
     groupId,
     effectiveFrom: forkFrom,
-    closedOn: stoppedOn,
-    closedBy: stoppedOn ? 'stopped' : undefined,
+    closedOn: ended ? current.closedOn : undefined,
+    closedBy: ended,
     deletedAt: current.deletedAt,
     createdAt: new Date().toISOString(),
   }
@@ -160,6 +162,29 @@ export function updateMedicine(groupId: string, input: MedicineInput) {
       ),
       next,
     ],
+  })
+}
+
+/**
+ * A course ended early because it is done, rather than abandoned.
+ *
+ * Closed after today, not from today. That one day is the whole difference
+ * between this and a stop: finishing says today was the last day of the course,
+ * so the dose ticked this morning is still inside the window and tonight's is
+ * still there to tick. Stopping says the course does not include today at all.
+ *
+ * `courseStatus` reads the closure rather than the date, so the card says Done
+ * from the moment this lands.
+ */
+export function finishMedicine(groupId: string) {
+  const current = currentRecord(groupId)
+  if (!current) return
+  const after = shiftKey(today(), 1)
+  commit({
+    ...db,
+    medicines: db.medicines.map((m) =>
+      m.id === current.id ? { ...m, closedOn: after, closedBy: 'completed' as const } : m,
+    ),
   })
 }
 
