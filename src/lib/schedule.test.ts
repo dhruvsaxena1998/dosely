@@ -3,6 +3,7 @@ import { courseEndFrom, shiftKey, today } from '@/lib/dates'
 import { examplePrescriptions } from '@/lib/examples'
 import {
   adherenceFor,
+  courseEnd,
   courseStatus,
   dayTallies,
   dosesOn,
@@ -10,11 +11,13 @@ import {
   groupMedicines,
   isDoseDay,
   lastDueDate,
+  logKey,
   nextDueDate,
   nextOpenDate,
   scheduleHorizon,
   sameSchedule,
   slotAction,
+  slotsOn,
   slotTargets,
 } from '@/lib/schedule'
 import type { DoseOutcome } from '@/lib/schedule'
@@ -304,6 +307,143 @@ describe('the real prescription', () => {
     const names = dosesOn(db(medicines), shiftKey(start, 7), start).map((d) => d.name)
     expect(names).not.toContain('Omeprazole 20MG')
     expect(names).not.toContain('Paracetamol 500MG or Crocin')
+  })
+})
+
+describe('a course counted in doses', () => {
+  it('gives ten doses one a day exactly ten days', () => {
+    const m = record({
+      name: 'Amoxicillin 500MG',
+      slots: ['after-breakfast'],
+      repeatEveryDays: 1,
+      anchorDate: '2025-09-01',
+      durationValue: 10,
+      durationUnit: 'doses',
+    })
+    expect(dosesFor(m)).toHaveLength(10)
+    expect(courseEnd(m)).toBe('2025-09-11')
+  })
+
+  it('spends a strip of ten twice a day in five days', () => {
+    const m = record({
+      name: 'Amoxicillin 500MG',
+      slots: ['after-breakfast', 'after-dinner'],
+      repeatEveryDays: 1,
+      anchorDate: '2025-09-01',
+      durationValue: 10,
+      durationUnit: 'doses',
+    })
+    expect(dosesFor(m)).toHaveLength(10)
+    expect(courseEnd(m)).toBe('2025-09-06')
+  })
+
+  it('ends mid-day when the count does not divide by the slots', () => {
+    const m = record({
+      name: 'Amoxicillin 500MG',
+      slots: ['after-dinner', 'before-breakfast', 'after-lunch'],
+      repeatEveryDays: 1,
+      anchorDate: '2025-09-01',
+      durationValue: 10,
+      durationUnit: 'doses',
+    })
+    expect(dosesFor(m)).toHaveLength(10)
+    expect(slotsOn(m, '2025-09-03')).toEqual(['before-breakfast', 'after-lunch', 'after-dinner'])
+    expect(slotsOn(m, '2025-09-04')).toEqual(['before-breakfast'])
+    expect(courseEnd(m)).toBe('2025-09-05')
+  })
+
+  it('puts the tenth of ten sessions on the tenth day it falls on', () => {
+    const m = record({
+      name: 'Physiotherapy',
+      slots: ['anytime'],
+      repeatEveryDays: 1,
+      weekdays: [1, 3, 5],
+      anchorDate: '2025-09-01',
+      durationValue: 10,
+      durationUnit: 'doses',
+    })
+    const dates = dosesFor(m).map((d) => d.date)
+    expect(dates).toHaveLength(10)
+    expect(dates[dates.length - 1]).toBe('2025-09-22')
+    expect(courseEnd(m)).toBe('2025-09-23')
+  })
+
+  it('spends nothing on a start date the course does not run on', () => {
+    const m = record({
+      name: 'Physiotherapy',
+      slots: ['anytime'],
+      repeatEveryDays: 1,
+      weekdays: [2],
+      anchorDate: '2025-09-01',
+      durationValue: 3,
+      durationUnit: 'doses',
+    })
+    expect(dosesFor(m).map((d) => d.date)).toEqual(['2025-09-02', '2025-09-09', '2025-09-16'])
+  })
+
+  it('counts over an every-other-day repeat', () => {
+    const m = record({
+      name: 'Iron',
+      slots: ['after-lunch'],
+      repeatEveryDays: 2,
+      anchorDate: '2025-09-01',
+      durationValue: 4,
+      durationUnit: 'doses',
+    })
+    expect(dosesFor(m).map((d) => d.date)).toEqual(['2025-09-01', '2025-09-03', '2025-09-05', '2025-09-07'])
+  })
+
+  it('schedules nothing for a pattern that never fires', () => {
+    const m = record({
+      name: 'Imported oddity',
+      slots: ['anytime'],
+      repeatEveryDays: 7,
+      weekdays: [2],
+      anchorDate: '2025-09-01',
+      durationValue: 5,
+      durationUnit: 'doses',
+    })
+    expect(dosesFor(m)).toHaveLength(0)
+    expect(courseEnd(m)).toBe(m.effectiveFrom)
+  })
+
+  it('puts the count in the denominator, whatever is ticked', () => {
+    const m = record({
+      name: 'Amoxicillin 500MG',
+      slots: ['after-breakfast', 'after-dinner'],
+      repeatEveryDays: 1,
+      anchorDate: '2025-09-01',
+      durationValue: 9,
+      durationUnit: 'doses',
+    })
+    const tally = adherenceFor(db([m]), groupMedicines([m])[0], '2025-09-30')
+    expect(tally.total).toBe(9)
+    expect(tally.missed).toBe(9)
+  })
+
+  it('does not hand back a day for a dose that was missed', () => {
+    const m = record({
+      name: 'Amoxicillin 500MG',
+      slots: ['after-breakfast'],
+      repeatEveryDays: 1,
+      anchorDate: '2025-09-01',
+      durationValue: 6,
+      durationUnit: 'doses',
+    })
+    const log = {
+      [logKey(m.groupId, '2025-09-02', 'after-breakfast')]: {
+        groupId: m.groupId,
+        date: '2025-09-02',
+        slot: 'after-breakfast' as const,
+        state: 'taken' as const,
+        at: '2025-09-02T09:00:00.000Z',
+        name: m.name,
+      },
+    }
+    // Five of the six were missed, and the sixth is still the last one.
+    const tally = adherenceFor(db([m], log), groupMedicines([m])[0], '2025-09-30')
+    expect(tally).toMatchObject({ taken: 1, missed: 5, total: 6 })
+    expect(courseEnd(m)).toBe('2025-09-07')
   })
 })
 

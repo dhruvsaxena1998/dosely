@@ -19,3 +19,14 @@ if (!window.matchMedia) {
       dispatchEvent: () => false,
     }) as unknown as MediaQueryList
 }
+
+// A Radix select asks the element it is opening from about pointer capture and
+// then scrolls the chosen option into view. jsdom has neither method, so the
+// first press on any select throws before the list ever opens. These are the
+// no-ops a browser would answer with when nothing is captured.
+if (!window.HTMLElement.prototype.hasPointerCapture) {
+  window.HTMLElement.prototype.hasPointerCapture = () => false
+  window.HTMLElement.prototype.setPointerCapture = () => {}
+  window.HTMLElement.prototype.releasePointerCapture = () => {}
+  window.HTMLElement.prototype.scrollIntoView = () => {}
+}

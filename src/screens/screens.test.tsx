@@ -7,7 +7,7 @@ import { History } from '@/screens/History'
 import { MedicineForm } from '@/screens/MedicineForm'
 import { MedicineHistory } from '@/screens/MedicineHistory'
 import { Medicines } from '@/screens/Medicines'
-import { shiftKey, today } from '@/lib/dates'
+import { formatShort, formatWithYear, shiftKey, today } from '@/lib/dates'
 import { WEEKDAYS, weekdayOf } from '@/lib/weekdays'
 import { loadExamples } from '@/lib/examples'
 import { courseStatus, groupMedicines } from '@/lib/schedule'
@@ -881,6 +881,46 @@ describe('the app shell', () => {
 
     await user.click(screen.getByRole('link', { name: 'History' }))
     expect(screen.getByRole('heading', { name: 'History' })).toBeTruthy()
+  })
+})
+
+describe('the medicine form, counted in doses', () => {
+  it('prescribes a strip of ten rather than a stretch of calendar', async () => {
+    const user = userEvent.setup()
+    at('/medicines/new', <MedicineForm />, '/medicines/new')
+
+    await user.type(screen.getByLabelText('Name'), 'Amoxicillin 500MG')
+    await user.click(screen.getByRole('button', { name: 'After breakfast' }))
+    await user.click(screen.getByRole('button', { name: 'After dinner' }))
+    const duration = screen.getByLabelText('Runs for')
+    await user.clear(duration)
+    await user.type(duration, '10')
+    await user.click(screen.getByRole('combobox'))
+    await user.click(screen.getByRole('option', { name: 'doses' }))
+
+    // Ten tablets twice a day is five days, and the form says so before saving.
+    expect(screen.getByText('10 doses across 5 days')).toBeTruthy()
+
+    await user.click(screen.getByRole('button', { name: 'Add medicine' }))
+    const saved = groupMedicines(getDatabase().medicines)[0].current
+    expect(saved.durationValue).toBe(10)
+    expect(saved.durationUnit).toBe('doses')
+  })
+
+  it('ends a count that does not divide by the slots on a partial day', async () => {
+    addMedicine({
+      name: 'Amoxicillin 500MG',
+      slots: ['before-breakfast', 'after-lunch', 'after-dinner'],
+      repeatEveryDays: 1,
+      anchorDate: now,
+      durationValue: 10,
+      durationUnit: 'doses',
+    })
+    at('/medicines', <Medicines />, '/medicines')
+
+    const card = screen.getByText('Amoxicillin 500MG').closest('article')!
+    expect(within(card).getByText('10 doses')).toBeTruthy()
+    expect(within(card).getByText(`${formatShort(now)} to ${formatWithYear(shiftKey(now, 3))}`)).toBeTruthy()
   })
 })
 

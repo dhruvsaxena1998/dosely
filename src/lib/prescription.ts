@@ -1,6 +1,6 @@
 import type { DateKey } from '@/lib/dates'
 import { formatWithYear, today } from '@/lib/dates'
-import { describeDuration, describeGroupSpan, describeRepeat } from '@/lib/describe'
+import { describeGroupSpan, describeLength, describeRepeat } from '@/lib/describe'
 import type { MedicineGroup } from '@/lib/schedule'
 import { slotLabel, sortSlots } from '@/lib/slots'
 
@@ -57,7 +57,7 @@ function courseText(group: MedicineGroup): string {
   const m = group.current
   const lines = [
     sortSlots(m.slots).map(slotLabel).join(', '),
-    `${describeRepeat(m)} for ${describeDuration(m.durationValue, m.durationUnit)} · ${describeGroupSpan(group)}`,
+    `${describeRepeat(m)} for ${describeLength(group)} · ${describeGroupSpan(group)}`,
   ]
   if (m.note) lines.push(m.note)
   return [m.name, ...lines.map((line) => INDENT + line)].join('\n')

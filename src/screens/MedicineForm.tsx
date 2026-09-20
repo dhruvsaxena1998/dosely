@@ -8,9 +8,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import type { DurationUnit } from '@/lib/dates'
-import { courseEndFrom, daysBetween, formatDay, isValidKey, useToday } from '@/lib/dates'
+import { daysBetween, formatDay, isValidKey, useToday } from '@/lib/dates'
 import { describeDuration, describeRepeat, describeSpan, sentenceList } from '@/lib/describe'
-import { doseHistory, groupMedicines, sameSchedule } from '@/lib/schedule'
+import { courseEnd, doseHistory, groupMedicines, sameSchedule } from '@/lib/schedule'
 import { SLOTS, type SlotId } from '@/lib/slots'
 import { EVERY_DAY, WEEKDAYS, isEveryDay, normalizeWeekdays, weekdayOf, type Weekday } from '@/lib/weekdays'
 import { addMedicine, updateMedicine, useDatabase } from '@/lib/store'
@@ -139,7 +139,7 @@ export function MedicineForm() {
     const first = doses[0]?.date
     return {
       summary: `${doses.length} ${doses.length === 1 ? 'dose' : 'doses'} across ${days} ${days === 1 ? 'day' : 'days'}`,
-      span: describeSpan(startDate, courseEndFrom(startDate, duration, durationUnit)),
+      span: describeSpan(startDate, courseEnd(provisional)),
       firstDose: first && first !== startDate ? formatDay(first) : undefined,
       repeat: describeRepeat({ repeatEveryDays, weekdays: repeatDays }),
     }
@@ -427,6 +427,7 @@ export function MedicineForm() {
                       <SelectItem value="days">days</SelectItem>
                       <SelectItem value="weeks">weeks</SelectItem>
                       <SelectItem value="months">months</SelectItem>
+                      <SelectItem value="doses">doses</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

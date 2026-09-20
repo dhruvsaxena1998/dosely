@@ -1,7 +1,7 @@
 import type { DurationUnit } from '@/lib/dates'
 import { formatShort, formatWithYear, shiftKey } from '@/lib/dates'
 import type { Adherence, MedicineGroup } from '@/lib/schedule'
-import { groupSpan } from '@/lib/schedule'
+import { doseHistory, groupSpan } from '@/lib/schedule'
 import type { Weekday } from '@/lib/weekdays'
 import { WEEKDAYS, isEveryDay, sortWeekdays, weekdayShort } from '@/lib/weekdays'
 
@@ -39,6 +39,22 @@ export function sentenceList(parts: readonly string[]): string {
 export function describeDuration(value: number, unit: DurationUnit): string {
   const noun = value === 1 ? unit.slice(0, -1) : unit
   return `${value} ${noun}`
+}
+
+/**
+ * How long a course is, in the unit it was prescribed in.
+ *
+ * A counted course is asked of the whole group rather than of the current
+ * version, because an edit hands the fork what is left: five doses on the record
+ * of a course that was written for twenty is the remainder, not the
+ * prescription. Adding the versions back up says twenty, which is what the
+ * person was told and what the card should say. A course counted in calendar
+ * reads straight off the record and walks nothing.
+ */
+export function describeLength(g: MedicineGroup): string {
+  const m = g.current
+  if (m.durationUnit !== 'doses') return describeDuration(m.durationValue, m.durationUnit)
+  return describeDuration(doseHistory(g).length, 'doses')
 }
 
 /** The span reads inclusively, so a course ending before 6 Oct shows as "to 5 Oct". */

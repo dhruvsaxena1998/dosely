@@ -208,6 +208,18 @@ course starting 1 Sep runs to 29 Sep, five doses. Read inclusively it would give
 six. The add form previews the exact dose count before you save, which is the
 cheapest place to catch a wrong start date.
 
+A duration can also be a **count of doses** instead of a stretch of calendar.
+Some prescriptions are written that way — a strip of ten tablets, ten
+physiotherapy sessions — and the date they end on is the consequence rather than
+the instruction. A counted course runs until it has scheduled the number it was
+given, so ten doses twice a day is five days, and ten doses three times a day is
+three days and a fourth holding one. The last day is partial on purpose: rounding
+up would schedule a tablet that is not in the strip.
+
+Missing a dose does not hand a day back. The schedule is the prescription, not an
+inventory of what is left in the packet, and a course that grew itself a spare
+day every time a dose went untaken could never record one as missed.
+
 There are no dependencies between medicines. A medicine prescribed a few days
 after another one is modelled as its own course with a later start date. If you
 move the first, you move the second yourself.
@@ -222,6 +234,11 @@ prescribed on any past date stays exact and the history panel cannot lie.
 
 The fork keeps the original anchor date, so editing a Monday medicine on a
 Wednesday does not drag its doses off their Monday.
+
+A counted course forks with what is left of the count rather than the whole strip
+again, so dropping the lunchtime dose halfway through twenty tablets schedules the
+remaining ten at the new rate. Typing a different number is read as a new
+prescription and taken at its word.
 
 ### Ending a course early
 

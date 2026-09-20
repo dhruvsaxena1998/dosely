@@ -15,7 +15,85 @@ export interface MedicineGroup {
 }
 
 export function courseEnd(m: MedicineRecord): DateKey {
-  return courseEndFrom(m.anchorDate, m.durationValue, m.durationUnit)
+  if (m.durationUnit !== 'doses') return courseEndFrom(m.anchorDate, m.durationValue, m.durationUnit)
+  const { lastDay } = countPlan(m)
+  return lastDay ? shiftKey(lastDay, 1) : m.effectiveFrom
+}
+
+/**
+ * Where a count of doses runs out: the day the last one falls on, and how many
+ * of that day's slots are left to hold it.
+ *
+ * Ten doses at three slots a day is three days and one more dose, so the fourth
+ * dose day is partial. Rounding it up would schedule two tablets that are not in
+ * the strip and rounding it down would end the prescription early, so the last
+ * day keeps only the slots the count can pay for.
+ *
+ * Counted from `effectiveFrom` rather than from the anchor, which is what lets a
+ * fork be handed the remainder and count it out from the day it opens. The
+ * anchor still decides the phase, so an edit never moves a weekly course off its
+ * weekday.
+ */
+function countPlan(m: MedicineRecord): { lastDay?: DateKey; lastDaySlots: number } {
+  const perDay = m.slots.length
+  const count = Math.floor(m.durationValue)
+  if (perDay < 1 || count < 1) return { lastDaySlots: 0 }
+  const rest = count % perDay
+  const days = Math.floor(count / perDay) + (rest > 0 ? 1 : 0)
+  return { lastDay: nthPatternDay(m, m.effectiveFrom, days), lastDaySlots: rest === 0 ? perDay : rest }
+}
+
+/**
+ * Whether the repeat and the weekdays land a dose on this date, with no regard
+ * for how long the course runs. The half of `isDoseDay` that a count is allowed
+ * to ask, because asking the other half would mean knowing the end of a course
+ * in order to work out the end of a course.
+ */
+function onPattern(m: ScheduleShape, date: DateKey): boolean {
+  const offset = daysBetween(m.anchorDate, date)
+  if (offset < 0 || offset % m.repeatEveryDays !== 0) return false
+  return !m.weekdays || m.weekdays.includes(weekdayOf(date))
+}
+
+/**
+ * The nth day on or after `from` that the pattern falls on, counting from one.
+ *
+ * Arithmetic rather than a walk, because this is reached from `courseEnd`, which
+ * is reached from `isDoseDay`, which a month of grid cells calls a few hundred
+ * times. A plain repeat is one multiplication. A set of weekdays is a whole
+ * number of weeks plus an offset from the cycle of chosen days.
+ *
+ * The third case is a repeat above one combined with a weekday set, which the
+ * form never writes and an imported record can still hold. It is walked, one
+ * repeat at a time, and given up on after seven consecutive misses: seven steps
+ * cover every weekday the cycle can reach, so a pattern still dry by then —
+ * every 7 days from a Monday, filtered to Tuesdays — never fires at all.
+ */
+function nthPatternDay(m: ScheduleShape, from: DateKey, n: number): DateKey | undefined {
+  if (n < 1) return undefined
+  const step = m.repeatEveryDays
+  const gap = Math.max(0, daysBetween(m.anchorDate, from))
+  const first = shiftKey(m.anchorDate, Math.ceil(gap / step) * step)
+  if (!m.weekdays || isEveryDay(m.weekdays)) return shiftKey(first, (n - 1) * step)
+  if (step === 1) {
+    const start = weekdayOf(first)
+    const offsets = sortWeekdays(m.weekdays)
+      .map((d) => (d - start + 7) % 7)
+      .sort((a, b) => a - b)
+    return shiftKey(first, Math.floor((n - 1) / offsets.length) * 7 + offsets[(n - 1) % offsets.length])
+  }
+  let cursor = first
+  let dry = 0
+  let seen = 0
+  while (dry < 7) {
+    if (m.weekdays.includes(weekdayOf(cursor))) {
+      seen += 1
+      if (seen === n) return cursor
+      dry = 0
+    } else dry += 1
+    cursor = shiftKey(cursor, step)
+  }
+  return undefined
 }
 
 /** `[from, to)` — the dates this version is responsible for. */
@@ -27,9 +105,43 @@ export function recordWindow(m: MedicineRecord): { from: DateKey; to: DateKey } 
 export function isDoseDay(m: MedicineRecord, date: DateKey): boolean {
   const { from, to } = recordWindow(m)
   if (date < from || date >= to) return false
-  const offset = daysBetween(m.anchorDate, date)
-  if (offset < 0 || offset % m.repeatEveryDays !== 0) return false
-  return !m.weekdays || m.weekdays.includes(weekdayOf(date))
+  return onPattern(m, date)
+}
+
+/**
+ * The slots this version schedules on a date, in slot order, and empty on a day
+ * it schedules nothing.
+ *
+ * The one place a partial day exists. Everything that asks what a day holds asks
+ * here, so the Today screen, the tallies and the history cannot disagree about
+ * the day a count runs out on.
+ */
+export function slotsOn(m: MedicineRecord, date: DateKey): SlotId[] {
+  if (!isDoseDay(m, date)) return []
+  const slots = sortSlots(m.slots)
+  if (m.durationUnit !== 'doses') return slots
+  const plan = countPlan(m)
+  return date === plan.lastDay ? slots.slice(0, plan.lastDaySlots) : slots
+}
+
+/**
+ * How many doses this version has scheduled before `date`, which for a counted
+ * course is how much of the count is spent. What was ticked has nothing to do
+ * with it: a missed dose is a missed dose, not a tablet still owed.
+ */
+export function dosesBefore(m: MedicineRecord, date: DateKey): number {
+  const { from, to } = recordWindow(m)
+  let spent = 0
+  for (let cursor = from; cursor < to && cursor < date; cursor = shiftKey(cursor, 1)) {
+    spent += slotsOn(m, cursor).length
+  }
+  return spent
+}
+
+/** What is left of a counted course, and nothing for a course counted in days. */
+export function dosesLeft(m: MedicineRecord, date: DateKey = today()): number | undefined {
+  if (m.durationUnit !== 'doses') return undefined
+  return Math.max(0, Math.floor(m.durationValue) - dosesBefore(m, date))
 }
 
 /** The fields that decide which days and slots a version schedules. */
@@ -123,8 +235,7 @@ export function recordForDate(g: MedicineGroup, date: DateKey): MedicineRecord |
 
 export function scheduledSlotsOn(g: MedicineGroup, date: DateKey): SlotId[] {
   const record = recordForDate(g, date)
-  if (!record || !isDoseDay(record, date)) return []
-  return sortSlots(record.slots)
+  return record ? slotsOn(record, date) : []
 }
 
 export function nextDueDate(g: MedicineGroup, from: DateKey = today()): DateKey | undefined {
@@ -204,9 +315,16 @@ export function courseStatus(g: MedicineGroup, ref: DateKey = today()): CourseSt
  * nothing to resume into — a version opened today would own an empty window —
  * so a course stopped and then left alone until its span ran out is asked to be
  * started again rather than resumed.
+ *
+ * What is left of a counted course is doses rather than days, and no amount of
+ * waiting spends those, so the same question is asked of the strip instead.
  */
 export function canResume(g: MedicineGroup, ref: DateKey = today()): boolean {
-  return courseStatus(g, ref) === 'stopped' && ref < courseEnd(g.current)
+  if (courseStatus(g, ref) !== 'stopped') return false
+  // A counted course has doses left rather than days left, and a pause spends
+  // neither. It can be resumed for as long as there is anything in the strip.
+  const left = dosesLeft(g.current, ref)
+  return left === undefined ? ref < courseEnd(g.current) : left > 0
 }
 
 export function logKey(groupId: string, date: DateKey, slot: SlotId): string {
@@ -271,8 +389,8 @@ export function dosesOnFor(db: Database, groups: readonly MedicineGroup[], date:
   const doses: Dose[] = []
   for (const g of groups) {
     const record = recordForDate(g, date)
-    if (!record || !isDoseDay(record, date)) continue
-    for (const slot of sortSlots(record.slots)) {
+    if (!record) continue
+    for (const slot of slotsOn(record, date)) {
       const entry = lookupDose(db, g.groupId, date, slot)
       doses.push({
         group: g,

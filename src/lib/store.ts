@@ -2,7 +2,7 @@ import { useSyncExternalStore } from 'react'
 import type { DateKey } from '@/lib/dates'
 import { maxKey, shiftKey, today } from '@/lib/dates'
 import type { SlotId } from '@/lib/slots'
-import { canResume, closureOf, groupMedicines, logKey, recordWindow, sameSchedule } from '@/lib/schedule'
+import { canResume, closureOf, dosesLeft, groupMedicines, logKey, recordWindow, sameSchedule } from '@/lib/schedule'
 import type { Database, DoseState, MedicineInput, MedicineRecord } from '@/types'
 
 const STORAGE_KEY = 'dosely.db.v1'
@@ -81,6 +81,20 @@ function scheduleChanged(a: MedicineRecord, b: MedicineInput): boolean {
 }
 
 /**
+ * The length to write on a version opening at `at`, which for a count is what
+ * is left of it rather than the whole strip again.
+ *
+ * Only when the number came through untouched. Typing a new count is
+ * re-prescribing — the doctor said fifteen sessions now, not fifteen on top of
+ * the four you have had — so a number the user changed is taken at its word.
+ */
+function lengthFrom(current: MedicineRecord, input: MedicineInput, at: DateKey): number {
+  if (input.durationUnit !== 'doses' || current.durationUnit !== 'doses') return input.durationValue
+  if (input.durationValue !== current.durationValue) return input.durationValue
+  return dosesLeft(current, at) ?? input.durationValue
+}
+
+/**
  * Name and note are cosmetic, so they rewrite every version — fixing a typo
  * should fix it everywhere. Anything that moves a dose forks a new version from
  * today instead, leaving the past exactly as it was prescribed.
@@ -126,6 +140,7 @@ export function updateMedicine(groupId: string, input: MedicineInput) {
   const ended = closure === 'stopped' || closure === 'completed' ? closure : undefined
   const next: MedicineRecord = {
     ...input,
+    durationValue: lengthFrom(current, input, forkFrom),
     id: newId(),
     groupId,
     effectiveFrom: forkFrom,
@@ -232,10 +247,15 @@ export function purgeMedicine(groupId: string) {
  * alternative — clearing the stop and letting the derivation fill the gap in —
  * would convert a decision the user made into a stretch of neglect.
  *
- * The anchor and the duration come across untouched. The anchor keeps a weekly
- * course on the weekday it always used, and the duration keeps the course
- * ending when it was always going to end, so resuming never quietly extends a
- * prescription. It takes a hole out of the middle of one.
+ * The anchor comes across untouched, which keeps a weekly course on the weekday
+ * it always used and a Mon/Wed/Fri one on its three days.
+ *
+ * What the duration does depends on what it counts. A course measured in
+ * calendar keeps its number and therefore its end: the days went past whether
+ * you took them or not, so resuming takes a hole out of the middle of a fixed
+ * span rather than extending it. A course measured in doses comes back with what
+ * is left of the count, and does extend, because a fortnight off empties no part
+ * of the strip.
  */
 export function resumeMedicine(groupId: string) {
   const group = groupMedicines(recordsOf(groupId))[0]
@@ -244,6 +264,7 @@ export function resumeMedicine(groupId: string) {
   // owning an empty window is a record that means nothing. The card offers
   // Start again by then; this is the same rule, held where it cannot be skipped.
   if (!current || !canResume(group)) return
+  const from = today()
   const record: MedicineRecord = {
     id: newId(),
     groupId,
@@ -251,10 +272,11 @@ export function resumeMedicine(groupId: string) {
     note: current.note,
     slots: current.slots,
     repeatEveryDays: current.repeatEveryDays,
+    weekdays: current.weekdays,
     anchorDate: current.anchorDate,
-    durationValue: current.durationValue,
+    durationValue: dosesLeft(current, from) ?? current.durationValue,
     durationUnit: current.durationUnit,
-    effectiveFrom: today(),
+    effectiveFrom: from,
     deletedAt: current.deletedAt,
     createdAt: new Date().toISOString(),
   }

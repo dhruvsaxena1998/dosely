@@ -8,7 +8,7 @@ import { MonthGrid } from '@/components/MonthGrid'
 import { Button } from '@/components/ui/button'
 import type { DateKey } from '@/lib/dates'
 import { formatDay, formatTime, nearDayLabel, shiftKey, useToday } from '@/lib/dates'
-import { describeDuration, describeGroupSpan, describeRepeat } from '@/lib/describe'
+import { describeGroupSpan, describeLength, describeRepeat } from '@/lib/describe'
 import { OUTCOME_CHIP, OUTCOME_LABEL } from '@/lib/outcome'
 import type { DoseOutcome } from '@/lib/schedule'
 import { adherenceFor, dayTallies, doseHistory, dosesOnFor, groupMedicines, groupSpan, lookupDose } from '@/lib/schedule'
@@ -84,7 +84,7 @@ export function MedicineHistory() {
           <MetaLine
             parts={[
               describeRepeat(m),
-              describeDuration(m.durationValue, m.durationUnit),
+              describeLength(group),
               describeGroupSpan(group),
             ]}
           />
