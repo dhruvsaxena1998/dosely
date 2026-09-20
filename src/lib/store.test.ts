@@ -1,9 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { courseEndFrom, shiftKey, today } from '@/lib/dates'
-import { adherenceFor, courseEnd, courseStatus, groupMedicines, groupSpan, isDeleted, logKey, scheduledSlotsOn } from '@/lib/schedule'
+import {
+  adherenceFor,
+  canResume,
+  courseEnd,
+  courseStatus,
+  doseHistory,
+  groupMedicines,
+  groupSpan,
+  isDeleted,
+  logKey,
+  scheduledSlotsOn,
+} from '@/lib/schedule'
 import {
   addMedicine,
   deleteMedicine,
+  finishMedicine,
   getDatabase,
   importDatabase,
   purgeMedicine,
@@ -456,5 +468,74 @@ describe('answering several doses at once', () => {
     setDoses(now, [])
     expect(write).not.toHaveBeenCalled()
     write.mockRestore()
+  })
+})
+
+describe('finishing a course early', () => {
+  /** Twenty-one days prescribed, a fortnight taken, and the doctor says stop. */
+  const course: MedicineInput = {
+    name: 'Amoxicillin 500MG',
+    slots: ['after-breakfast'],
+    repeatEveryDays: 1,
+    anchorDate: shiftKey(now, -13),
+    durationValue: 21,
+    durationUnit: 'days',
+  }
+
+  it('ends the course with today rather than before it', () => {
+    const id = addMedicine(course)
+    finishMedicine(id)
+
+    expect(records(id)[0].closedOn).toBe(shiftKey(now, 1))
+    expect(records(id)[0].closedBy).toBe('completed')
+    expect(scheduledSlotsOn(group(id), now)).toEqual(['after-breakfast'])
+    expect(scheduledSlotsOn(group(id), shiftKey(now, 1))).toEqual([])
+  })
+
+  it('leaves a stop meaning exactly what it meant', () => {
+    const id = addMedicine(course)
+    stopMedicine(id)
+
+    expect(records(id)[0].closedOn).toBe(now)
+    expect(records(id)[0].closedBy).toBe('stopped')
+    expect(courseStatus(group(id), now)).toBe('stopped')
+  })
+
+  it('reads as finished from the day it was finished, not the day after', () => {
+    const id = addMedicine(course)
+    finishMedicine(id)
+
+    expect(courseStatus(group(id), now)).toBe('finished')
+    expect(courseStatus(group(id), shiftKey(now, 1))).toBe('finished')
+    expect(canResume(group(id), now)).toBe(false)
+  })
+
+  it('keeps the dose ticked this morning inside the course', () => {
+    const id = addMedicine(course)
+    setDose(id, now, 'after-breakfast', 'taken')
+    finishMedicine(id)
+
+    expect(doseHistory(group(id)).some((d) => d.date === now)).toBe(true)
+    expect(adherenceFor(getDatabase(), group(id), now).taken).toBe(1)
+  })
+
+  it('counts the fourteen days it ran and not the seven it did not', () => {
+    const id = addMedicine(course)
+    finishMedicine(id)
+
+    // Fourteen days in the denominator, and the last of them is today, which is
+    // still owed rather than missed.
+    const tally = adherenceFor(getDatabase(), group(id), now)
+    expect(tally).toMatchObject({ total: 14, missed: 13, pending: 1 })
+  })
+
+  it('does not reopen the course when it is edited afterwards', () => {
+    const id = addMedicine(course)
+    finishMedicine(id)
+    updateMedicine(id, { ...course, slots: ['after-dinner'] })
+
+    expect(group(id).current.closedBy).toBe('completed')
+    expect(group(id).current.closedOn).toBe(shiftKey(now, 1))
+    expect(courseStatus(group(id), now)).toBe('finished')
   })
 })
