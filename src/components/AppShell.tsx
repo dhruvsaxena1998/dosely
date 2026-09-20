@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import { CalendarCheck, History, Pill, Settings2 } from 'lucide-react'
+import { useReminderSync } from '@/lib/reminder-sync'
 import { cn } from '@/lib/utils'
 
 const TABS = [
@@ -10,6 +11,10 @@ const TABS = [
 ]
 
 export function AppShell() {
+  // Mounted here because this is the component that is always on screen, so the
+  // reminders are kept correct for every reason the app has to be open.
+  useReminderSync()
+
   return (
     <div className="screen mx-auto w-full max-w-md">
       <main className="flex-1 overflow-y-auto overscroll-contain pb-24">
