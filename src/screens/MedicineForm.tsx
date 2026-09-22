@@ -15,7 +15,7 @@ import { SLOTS, type SlotId } from '@/lib/slots'
 import { EVERY_DAY, WEEKDAYS, isEveryDay, normalizeWeekdays, weekdayOf, type Weekday } from '@/lib/weekdays'
 import { addMedicine, updateMedicine, useDatabase } from '@/lib/store'
 import { TOGGLE_ITEM } from '@/lib/ui'
-import type { MedicineInput, MedicineRecord } from '@/types'
+import type { Database, MedicineInput, MedicineRecord } from '@/types'
 import { cn } from '@/lib/utils'
 
 /** Days of the week, the way an alarm is set, or a plain interval. Never both. */
@@ -132,14 +132,19 @@ export function MedicineForm() {
       effectiveFrom: startDate,
       createdAt: new Date().toISOString(),
     }
-    const doses = doseHistory(groupMedicines([provisional])[0])
+    // The prescription as written, read from its own start date. Nothing has
+    // been taken yet as far as the preview is concerned, so a count is laid out
+    // exactly as the doctor said it; the start note below already warns that
+    // days before today are missed until they are ticked.
+    const sketch: Database = { version: 1, medicines: [provisional], log: {} }
+    const doses = doseHistory(sketch, groupMedicines([provisional])[0], startDate)
     const days = new Set(doses.map((d) => d.date)).size
     // A start date on a day the medicine does not fall on is a real prescription
     // date with a later first dose, so the preview says which day that is.
     const first = doses[0]?.date
     return {
       summary: `${doses.length} ${doses.length === 1 ? 'dose' : 'doses'} across ${days} ${days === 1 ? 'day' : 'days'}`,
-      span: describeSpan(startDate, courseEnd(provisional)),
+      span: describeSpan(startDate, courseEnd(sketch, provisional, startDate)),
       firstDose: first && first !== startDate ? formatDay(first) : undefined,
       repeat: describeRepeat({ repeatEveryDays, weekdays: repeatDays }),
     }

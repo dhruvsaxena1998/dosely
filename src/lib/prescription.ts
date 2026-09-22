@@ -3,6 +3,7 @@ import { formatWithYear, today } from '@/lib/dates'
 import { describeGroupSpan, describeLength, describeRepeat } from '@/lib/describe'
 import type { MedicineGroup } from '@/lib/schedule'
 import { slotLabel, sortSlots } from '@/lib/slots'
+import type { Database } from '@/types'
 
 /**
  * A run of courses under the heading the list already gives them. The screen
@@ -34,6 +35,7 @@ const INDENT = '  '
  * left out entirely rather than printed with nothing under it.
  */
 export function prescriptionText(
+  db: Database,
   sections: readonly PrescriptionSection[],
   on: DateKey = today(),
 ): string {
@@ -43,7 +45,7 @@ export function prescriptionText(
   const blocks = [`Dosely · ${formatWithYear(on)}`]
   for (const section of filled) {
     blocks.push(section.title.toUpperCase())
-    for (const group of section.groups) blocks.push(courseText(group))
+    for (const group of section.groups) blocks.push(courseText(db, group, on))
   }
   return blocks.join('\n\n')
 }
@@ -53,11 +55,11 @@ export function prescriptionText(
  * "when do I take it" is the question; how often and for how long is the
  * follow-up, and the note is whatever the box said.
  */
-function courseText(group: MedicineGroup): string {
+function courseText(db: Database, group: MedicineGroup, on: DateKey): string {
   const m = group.current
   const lines = [
     sortSlots(m.slots).map(slotLabel).join(', '),
-    `${describeRepeat(m)} for ${describeLength(group)} · ${describeGroupSpan(group)}`,
+    `${describeRepeat(m)} for ${describeLength(db, group, on)} · ${describeGroupSpan(db, group, on)}`,
   ]
   if (m.note) lines.push(m.note)
   return [m.name, ...lines.map((line) => INDENT + line)].join('\n')

@@ -127,13 +127,13 @@ export function Medicines() {
   const sections = useMemo(() => {
     const live = groups.filter((g) => !g.current.deletedAt)
     return {
-      active: live.filter((g) => courseStatus(g, now) === 'active'),
-      upcoming: live.filter((g) => courseStatus(g, now) === 'upcoming'),
+      active: live.filter((g) => courseStatus(db, g, now) === 'active'),
+      upcoming: live.filter((g) => courseStatus(db, g, now) === 'upcoming'),
       archived: groups.filter(
-        (g) => g.current.deletedAt || ['finished', 'stopped'].includes(courseStatus(g, now)),
+        (g) => g.current.deletedAt || ['finished', 'stopped'].includes(courseStatus(db, g, now)),
       ),
     }
-  }, [groups, now])
+  }, [db, groups, now])
 
   const { active, upcoming, archived } = useMemo(() => {
     if (!needle) return sections
@@ -151,13 +151,14 @@ export function Medicines() {
   const prescription = useMemo(
     () =>
       prescriptionText(
+        db,
         [
           { title: RUNNING, groups: sections.active },
           { title: NOT_STARTED, groups: sections.upcoming },
         ],
         now,
       ),
-    [sections, now],
+    [db, sections, now],
   )
 
   const total = groups.length
@@ -361,7 +362,7 @@ function MedicineCard({
   onConfirm: (c: Confirm) => void
 }) {
   const m = group.current
-  const status = courseStatus(group, now)
+  const status = courseStatus(db, group, now)
   const deleted = Boolean(m.deletedAt)
   const due = deleted ? undefined : nextOpenDate(db, group, now)
   // Held, because it walks every dose the course ever scheduled and a chronic
@@ -400,8 +401,8 @@ function MedicineCard({
             className="mt-1"
             parts={[
               describeRepeat(m),
-              describeLength(group),
-              describeGroupSpan(group),
+              describeLength(db, group, now),
+              describeGroupSpan(db, group, now),
             ]}
           />
 
@@ -418,7 +419,7 @@ function MedicineCard({
       </div>
 
       <div className="-mx-1 mt-3 flex flex-wrap items-center gap-1 border-t pt-2">
-        {courseActions(group, now).map((action) => (
+        {courseActions(db, group, now).map((action) => (
           <Action key={action} action={action} group={group} onConfirm={onConfirm} />
         ))}
       </div>

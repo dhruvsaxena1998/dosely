@@ -91,7 +91,7 @@ function scheduleChanged(a: MedicineRecord, b: MedicineInput): boolean {
 function lengthFrom(current: MedicineRecord, input: MedicineInput, at: DateKey): number {
   if (input.durationUnit !== 'doses' || current.durationUnit !== 'doses') return input.durationValue
   if (input.durationValue !== current.durationValue) return input.durationValue
-  return dosesLeft(current, at) ?? input.durationValue
+  return dosesLeft(db, current, at) ?? input.durationValue
 }
 
 /**
@@ -263,7 +263,7 @@ export function resumeMedicine(groupId: string) {
   // Nothing to resume into once the original span has elapsed, and a version
   // owning an empty window is a record that means nothing. The card offers
   // Start again by then; this is the same rule, held where it cannot be skipped.
-  if (!current || !canResume(group)) return
+  if (!current || !canResume(db, group)) return
   const from = today()
   const record: MedicineRecord = {
     id: newId(),
@@ -274,7 +274,7 @@ export function resumeMedicine(groupId: string) {
     repeatEveryDays: current.repeatEveryDays,
     weekdays: current.weekdays,
     anchorDate: current.anchorDate,
-    durationValue: dosesLeft(current, from) ?? current.durationValue,
+    durationValue: dosesLeft(db, current, from) ?? current.durationValue,
     durationUnit: current.durationUnit,
     effectiveFrom: from,
     deletedAt: current.deletedAt,
@@ -299,7 +299,7 @@ export interface DoseChange {
 function nameOn(groupId: string, date: DateKey): string {
   const record = db.medicines.find((m) => {
     if (m.groupId !== groupId) return false
-    const w = recordWindow(m)
+    const w = recordWindow(db, m)
     return date >= w.from && date < w.to
   })
   return record?.name ?? currentRecord(groupId)?.name ?? 'Unknown'

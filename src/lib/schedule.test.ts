@@ -6,6 +6,7 @@ import {
   courseEnd,
   courseStatus,
   dayTallies,
+  dosesLeft,
   dosesOn,
   doseHistory,
   groupMedicines,
@@ -21,7 +22,8 @@ import {
   slotTargets,
 } from '@/lib/schedule'
 import type { DoseOutcome } from '@/lib/schedule'
-import type { Database, MedicineInput, MedicineRecord } from '@/types'
+import type { SlotId } from '@/lib/slots'
+import type { Database, DoseState, MedicineInput, MedicineRecord } from '@/types'
 
 let seq = 0
 function record(input: MedicineInput, overrides: Partial<MedicineRecord> = {}): MedicineRecord {
@@ -41,7 +43,7 @@ function db(medicines: MedicineRecord[], log: Database['log'] = {}): Database {
 }
 
 function dosesFor(m: MedicineRecord) {
-  return doseHistory(groupMedicines([m])[0])
+  return doseHistory(db([m]), groupMedicines([m])[0])
 }
 
 describe('course end is half open', () => {
@@ -64,7 +66,7 @@ describe('course end is half open', () => {
       '2025-09-06',
       '2025-09-07',
     ])
-    expect(isDoseDay(m, '2025-09-08')).toBe(false)
+    expect(isDoseDay(db([m]), m, '2025-09-08')).toBe(false)
   })
 
   it('gives a 5 week weekly course 5 doses, not 6', () => {
@@ -128,9 +130,9 @@ describe('a weekly medicine holds its weekday', () => {
       durationValue: 5,
       durationUnit: 'weeks',
     })
-    expect(isDoseDay(m, '2025-09-08')).toBe(true)
-    expect(isDoseDay(m, '2025-09-09')).toBe(false)
-    expect(nextDueDate(groupMedicines([m])[0], '2025-09-09')).toBe('2025-09-15')
+    expect(isDoseDay(db([m]), m, '2025-09-08')).toBe(true)
+    expect(isDoseDay(db([m]), m, '2025-09-09')).toBe(false)
+    expect(nextDueDate(db([m]), groupMedicines([m])[0], '2025-09-09')).toBe('2025-09-15')
   })
 })
 
@@ -163,12 +165,12 @@ describe('editing forks a version and leaves the past alone', () => {
   })
 
   it('never double counts the handover day', () => {
-    const onHandover = doseHistory(group).filter((d) => d.date === '2025-09-05')
+    const onHandover = doseHistory(db([v1, v2]), group).filter((d) => d.date === '2025-09-05')
     expect(onHandover).toHaveLength(1)
   })
 
   it('keeps the original course length across the fork', () => {
-    expect(doseHistory(group)).toHaveLength(30)
+    expect(doseHistory(db([v1, v2]), group)).toHaveLength(30)
   })
 })
 
@@ -235,32 +237,32 @@ describe('course status', () => {
   }
 
   it('is upcoming before the start date', () => {
-    expect(courseStatus(groupMedicines([record(base)])[0], '2025-08-30')).toBe('upcoming')
+    expect(courseStatus(db([record(base)]), groupMedicines([record(base)])[0], '2025-08-30')).toBe('upcoming')
   })
 
   it('is active inside the course', () => {
-    expect(courseStatus(groupMedicines([record(base)])[0], '2025-09-10')).toBe('active')
+    expect(courseStatus(db([record(base)]), groupMedicines([record(base)])[0], '2025-09-10')).toBe('active')
   })
 
   it('is finished once the course runs out', () => {
-    expect(courseStatus(groupMedicines([record(base)])[0], '2025-09-22')).toBe('finished')
+    expect(courseStatus(db([record(base)]), groupMedicines([record(base)])[0], '2025-09-22')).toBe('finished')
   })
 
   it('is stopped when closed before the course end', () => {
     const stopped = record(base, { closedOn: '2025-09-10', closedBy: 'stopped' })
-    expect(courseStatus(groupMedicines([stopped])[0], '2025-09-12')).toBe('stopped')
+    expect(courseStatus(db([stopped]), groupMedicines([stopped])[0], '2025-09-12')).toBe('stopped')
   })
 
   it('is finished when the stop landed on the day it was going to end anyway', () => {
     const stopped = record(base, { closedOn: '2025-09-22', closedBy: 'stopped' })
-    expect(courseStatus(groupMedicines([stopped])[0], '2025-09-23')).toBe('finished')
+    expect(courseStatus(db([stopped]), groupMedicines([stopped])[0], '2025-09-23')).toBe('finished')
   })
 
   it('never reports a superseded version as the state of the course', () => {
     const groupId = 'grp-forked'
     const first = record(base, { groupId, closedOn: '2025-09-10', closedBy: 'superseded' })
     const second = record({ ...base, slots: ['after-breakfast'] }, { groupId, effectiveFrom: '2025-09-10' })
-    expect(courseStatus(groupMedicines([first, second])[0], '2025-09-12')).toBe('active')
+    expect(courseStatus(db([first, second]), groupMedicines([first, second])[0], '2025-09-12')).toBe('active')
   })
 
   it('reads a database written before the two closures were named apart', () => {
@@ -268,12 +270,12 @@ describe('course status', () => {
     // group's last version can only have been closed by a stop, because
     // superseding a version is what puts another one after it.
     const stopped = record(base, { closedOn: '2025-09-10' })
-    expect(courseStatus(groupMedicines([stopped])[0], '2025-09-12')).toBe('stopped')
+    expect(courseStatus(db([stopped]), groupMedicines([stopped])[0], '2025-09-12')).toBe('stopped')
 
     const groupId = 'grp-legacy-fork'
     const first = record(base, { groupId, closedOn: '2025-09-10' })
     const second = record({ ...base, slots: ['after-breakfast'] }, { groupId, effectiveFrom: '2025-09-10' })
-    expect(courseStatus(groupMedicines([first, second])[0], '2025-09-12')).toBe('active')
+    expect(courseStatus(db([first, second]), groupMedicines([first, second])[0], '2025-09-12')).toBe('active')
   })
 })
 
@@ -311,139 +313,159 @@ describe('the real prescription', () => {
 })
 
 describe('a course counted in doses', () => {
-  it('gives ten doses one a day exactly ten days', () => {
-    const m = record({
-      name: 'Amoxicillin 500MG',
-      slots: ['after-breakfast'],
-      repeatEveryDays: 1,
-      anchorDate: '2025-09-01',
-      durationValue: 10,
-      durationUnit: 'doses',
-    })
-    expect(dosesFor(m)).toHaveLength(10)
-    expect(courseEnd(m)).toBe('2025-09-11')
+  const strip: MedicineInput = {
+    name: 'Amoxicillin 500MG',
+    slots: ['after-breakfast'],
+    repeatEveryDays: 1,
+    anchorDate: '2025-09-01',
+    durationValue: 10,
+    durationUnit: 'doses',
+  }
+  /** Read from the day it starts, nothing has happened yet and the count lies as prescribed. */
+  const start = '2025-09-01'
+
+  function entry(m: MedicineRecord, date: string, slot: SlotId, state: DoseState): Database['log'] {
+    return {
+      [logKey(m.groupId, date, slot)]: { groupId: m.groupId, date, slot, state, at: `${date}T09:00:00.000Z`, name: m.name },
+    }
+  }
+
+  /** Every slot on each of the days, taken. */
+  function swallowed(m: MedicineRecord, dates: string[]): Database['log'] {
+    const log: Database['log'] = {}
+    for (const date of dates) for (const slot of m.slots) Object.assign(log, entry(m, date, slot, 'taken'))
+    return log
+  }
+
+  it('gives ten doses one a day exactly ten days, as prescribed', () => {
+    const m = record(strip)
+    expect(doseHistory(db([m]), groupMedicines([m])[0], start)).toHaveLength(10)
+    expect(courseEnd(db([m]), m, start)).toBe('2025-09-11')
   })
 
   it('spends a strip of ten twice a day in five days', () => {
-    const m = record({
-      name: 'Amoxicillin 500MG',
-      slots: ['after-breakfast', 'after-dinner'],
-      repeatEveryDays: 1,
-      anchorDate: '2025-09-01',
-      durationValue: 10,
-      durationUnit: 'doses',
-    })
-    expect(dosesFor(m)).toHaveLength(10)
-    expect(courseEnd(m)).toBe('2025-09-06')
+    const m = record({ ...strip, slots: ['after-breakfast', 'after-dinner'] })
+    expect(doseHistory(db([m]), groupMedicines([m])[0], start)).toHaveLength(10)
+    expect(courseEnd(db([m]), m, start)).toBe('2025-09-06')
   })
 
   it('ends mid-day when the count does not divide by the slots', () => {
-    const m = record({
-      name: 'Amoxicillin 500MG',
-      slots: ['after-dinner', 'before-breakfast', 'after-lunch'],
-      repeatEveryDays: 1,
-      anchorDate: '2025-09-01',
-      durationValue: 10,
-      durationUnit: 'doses',
-    })
-    expect(dosesFor(m)).toHaveLength(10)
-    expect(slotsOn(m, '2025-09-03')).toEqual(['before-breakfast', 'after-lunch', 'after-dinner'])
-    expect(slotsOn(m, '2025-09-04')).toEqual(['before-breakfast'])
-    expect(courseEnd(m)).toBe('2025-09-05')
+    const m = record({ ...strip, slots: ['after-dinner', 'before-breakfast', 'after-lunch'] })
+    expect(doseHistory(db([m]), groupMedicines([m])[0], start)).toHaveLength(10)
+    expect(slotsOn(db([m]), m, '2025-09-03', start)).toEqual(['before-breakfast', 'after-lunch', 'after-dinner'])
+    expect(slotsOn(db([m]), m, '2025-09-04', start)).toEqual(['before-breakfast'])
+    expect(courseEnd(db([m]), m, start)).toBe('2025-09-05')
   })
 
   it('puts the tenth of ten sessions on the tenth day it falls on', () => {
-    const m = record({
-      name: 'Physiotherapy',
-      slots: ['anytime'],
-      repeatEveryDays: 1,
-      weekdays: [1, 3, 5],
-      anchorDate: '2025-09-01',
-      durationValue: 10,
-      durationUnit: 'doses',
-    })
-    const dates = dosesFor(m).map((d) => d.date)
+    const m = record({ ...strip, name: 'Physiotherapy', slots: ['anytime'], weekdays: [1, 3, 5] })
+    const dates = doseHistory(db([m]), groupMedicines([m])[0], start).map((d) => d.date)
     expect(dates).toHaveLength(10)
     expect(dates[dates.length - 1]).toBe('2025-09-22')
-    expect(courseEnd(m)).toBe('2025-09-23')
+    expect(courseEnd(db([m]), m, start)).toBe('2025-09-23')
   })
 
   it('spends nothing on a start date the course does not run on', () => {
-    const m = record({
-      name: 'Physiotherapy',
-      slots: ['anytime'],
-      repeatEveryDays: 1,
-      weekdays: [2],
-      anchorDate: '2025-09-01',
-      durationValue: 3,
-      durationUnit: 'doses',
-    })
-    expect(dosesFor(m).map((d) => d.date)).toEqual(['2025-09-02', '2025-09-09', '2025-09-16'])
+    const m = record({ ...strip, name: 'Physiotherapy', slots: ['anytime'], weekdays: [2], durationValue: 3 })
+    expect(doseHistory(db([m]), groupMedicines([m])[0], start).map((d) => d.date)).toEqual([
+      '2025-09-02',
+      '2025-09-09',
+      '2025-09-16',
+    ])
   })
 
   it('counts over an every-other-day repeat', () => {
-    const m = record({
-      name: 'Iron',
-      slots: ['after-lunch'],
-      repeatEveryDays: 2,
-      anchorDate: '2025-09-01',
-      durationValue: 4,
-      durationUnit: 'doses',
-    })
-    expect(dosesFor(m).map((d) => d.date)).toEqual(['2025-09-01', '2025-09-03', '2025-09-05', '2025-09-07'])
+    const m = record({ ...strip, name: 'Iron', slots: ['after-lunch'], repeatEveryDays: 2, durationValue: 4 })
+    expect(doseHistory(db([m]), groupMedicines([m])[0], start).map((d) => d.date)).toEqual([
+      '2025-09-01',
+      '2025-09-03',
+      '2025-09-05',
+      '2025-09-07',
+    ])
   })
 
   it('schedules nothing for a pattern that never fires', () => {
-    const m = record({
-      name: 'Imported oddity',
-      slots: ['anytime'],
-      repeatEveryDays: 7,
-      weekdays: [2],
-      anchorDate: '2025-09-01',
-      durationValue: 5,
-      durationUnit: 'doses',
-    })
-    expect(dosesFor(m)).toHaveLength(0)
-    expect(courseEnd(m)).toBe(m.effectiveFrom)
+    const m = record({ ...strip, name: 'Imported oddity', slots: ['anytime'], repeatEveryDays: 7, weekdays: [2], durationValue: 5 })
+    expect(doseHistory(db([m]), groupMedicines([m])[0], start)).toHaveLength(0)
+    expect(courseEnd(db([m]), m, start)).toBe(m.effectiveFrom)
   })
 
-  it('puts the count in the denominator, whatever is ticked', () => {
-    const m = record({
-      name: 'Amoxicillin 500MG',
-      slots: ['after-breakfast', 'after-dinner'],
-      repeatEveryDays: 1,
-      anchorDate: '2025-09-01',
-      durationValue: 9,
-      durationUnit: 'doses',
+  it('keeps a skipped dose in the strip, so the course runs a day longer', () => {
+    const m = record(strip)
+    const state = db([m], {
+      ...entry(m, '2025-09-01', 'after-breakfast', 'taken'),
+      ...entry(m, '2025-09-02', 'after-breakfast', 'skipped'),
     })
-    const tally = adherenceFor(db([m]), groupMedicines([m])[0], '2025-09-30')
-    expect(tally.total).toBe(9)
-    expect(tally.missed).toBe(9)
+    // Seen from the third day: one taken, one skipped, so nine still to come.
+    expect(dosesLeft(state, m, '2025-09-03')).toBe(9)
+    expect(courseEnd(state, m, '2025-09-03')).toBe('2025-09-12')
+    expect(dosesOn(state, '2025-09-11', '2025-09-03').map((d) => d.name)).toEqual(['Amoxicillin 500MG'])
   })
 
-  it('does not hand back a day for a dose that was missed', () => {
-    const m = record({
-      name: 'Amoxicillin 500MG',
-      slots: ['after-breakfast'],
-      repeatEveryDays: 1,
-      anchorDate: '2025-09-01',
-      durationValue: 6,
-      durationUnit: 'doses',
+  it('keeps a missed dose in the strip too', () => {
+    const m = record(strip)
+    const state = db([m], entry(m, '2025-09-01', 'after-breakfast', 'taken'))
+    // Day two went by with no answer. It is missed, and its tablet is still owed.
+    expect(dosesOn(state, '2025-09-02', '2025-09-03')[0].outcome).toBe('missed')
+    expect(courseEnd(state, m, '2025-09-03')).toBe('2025-09-12')
+    // Nothing ticked for a month: the course is still under way and still due today.
+    expect(courseEnd(state, m, '2025-10-01')).toBe('2025-10-10')
+    expect(courseStatus(state, groupMedicines([m])[0], '2025-10-01')).toBe('active')
+    expect(nextOpenDate(state, groupMedicines([m])[0], '2025-10-01')).toBe('2025-10-01')
+  })
+
+  it('assumes today and the days after it will be taken', () => {
+    const m = record(strip)
+    const state = db([m])
+    // Halfway through with nothing ticked: five days missed, and ten still to come.
+    expect(courseEnd(state, m, '2025-09-06')).toBe('2025-09-16')
+    expect(adherenceFor(state, groupMedicines([m])[0], '2025-09-06')).toEqual({
+      taken: 0,
+      skipped: 0,
+      missed: 5,
+      pending: 10,
+      total: 15,
     })
-    const log = {
-      [logKey(m.groupId, '2025-09-02', 'after-breakfast')]: {
-        groupId: m.groupId,
-        date: '2025-09-02',
-        slot: 'after-breakfast' as const,
-        state: 'taken' as const,
-        at: '2025-09-02T09:00:00.000Z',
-        name: m.name,
-      },
-    }
-    // Five of the six were missed, and the sixth is still the last one.
-    const tally = adherenceFor(db([m], log), groupMedicines([m])[0], '2025-09-30')
-    expect(tally).toMatchObject({ taken: 1, missed: 5, total: 6 })
-    expect(courseEnd(m)).toBe('2025-09-07')
+  })
+
+  it('ends the day after the last one is taken', () => {
+    const m = record({ ...strip, durationValue: 3 })
+    const state = db([m], swallowed(m, ['2025-09-01', '2025-09-02', '2025-09-03']))
+    expect(courseEnd(state, m, '2025-09-10')).toBe('2025-09-04')
+    expect(dosesLeft(state, m, '2025-09-04')).toBe(0)
+    expect(courseStatus(state, groupMedicines([m])[0], '2025-09-04')).toBe('finished')
+    expect(scheduleHorizon(state, '2025-09-04')).toBe('2025-09-04')
+  })
+
+  it('carries a partial last day forward when its dose is skipped', () => {
+    // Ten at three a day: the fourth day holds one. Skip it and a fifth day holds one.
+    const m = record({ ...strip, slots: ['before-breakfast', 'after-lunch', 'after-dinner'] })
+    const state = db([m], {
+      ...swallowed(m, ['2025-09-01', '2025-09-02', '2025-09-03']),
+      ...entry(m, '2025-09-04', 'before-breakfast', 'skipped'),
+    })
+    expect(slotsOn(state, m, '2025-09-04', '2025-09-05')).toEqual(['before-breakfast'])
+    expect(slotsOn(state, m, '2025-09-05', '2025-09-05')).toEqual(['before-breakfast'])
+    expect(courseEnd(state, m, '2025-09-05')).toBe('2025-09-06')
+  })
+
+  it('stops walking at the day a version was closed', () => {
+    const m = record(strip, { closedOn: '2025-09-04', closedBy: 'stopped' })
+    const state = db([m])
+    expect(doseHistory(state, groupMedicines([m])[0], '2025-09-10').map((d) => d.date)).toEqual([
+      '2025-09-01',
+      '2025-09-02',
+      '2025-09-03',
+    ])
+    // Nothing was taken, so the whole strip is still there to resume into.
+    expect(dosesLeft(state, m, '2025-09-10')).toBe(10)
+    expect(courseStatus(state, groupMedicines([m])[0], '2025-09-10')).toBe('stopped')
+  })
+
+  it('reads a stop that landed on an empty strip as finished', () => {
+    const m = record({ ...strip, durationValue: 2 }, { closedOn: '2025-09-05', closedBy: 'stopped' })
+    const state = db([m], swallowed(m, ['2025-09-01', '2025-09-02']))
+    expect(courseStatus(state, groupMedicines([m])[0], '2025-09-10')).toBe('finished')
   })
 })
 
@@ -460,7 +482,7 @@ describe('the horizon of what is still to come', () => {
   it('ends on the last dose day, not on the day the course window closes', () => {
     // The window is half open to 6 Oct, but the fifth and final dose is 29 Sep.
     const g = groupMedicines([record(weekly)])[0]
-    expect(lastDueDate(g)).toBe('2025-09-29')
+    expect(lastDueDate(db([record(weekly)]), g)).toBe('2025-09-29')
   })
 
   it('reaches the furthest dose of any course', () => {
@@ -516,7 +538,7 @@ describe('a dose already ticked is no longer due', () => {
     const log = { ...entry('2025-09-01', 'after-breakfast', 'taken'), ...entry('2025-09-01', 'after-dinner', 'taken') }
     expect(nextOpenDate(db([m], log), group, '2025-09-01')).toBe('2025-09-02')
     // The schedule itself has not moved; only what is left of it has.
-    expect(nextDueDate(group, '2025-09-01')).toBe('2025-09-01')
+    expect(nextDueDate(db([m], log), group, '2025-09-01')).toBe('2025-09-01')
   })
 
   it('treats a skip as answered, not as still owing', () => {
@@ -623,7 +645,7 @@ describe('repeating on chosen days of the week', () => {
 
   it('takes its first dose on the next chosen day when the start is not one', () => {
     const m = record({ ...monWedFri, anchorDate: '2025-09-02' })
-    expect(isDoseDay(m, '2025-09-02')).toBe(false)
+    expect(isDoseDay(db([m]), m, '2025-09-02')).toBe(false)
     expect(dosesFor(m)[0].date).toBe('2025-09-03')
   })
 

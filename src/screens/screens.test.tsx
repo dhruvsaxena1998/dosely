@@ -550,7 +550,7 @@ describe('the medicine form', () => {
     await user.click(screen.getByRole('button', { name: 'After dinner' }))
     await user.click(screen.getByRole('button', { name: /save changes/i }))
 
-    expect(courseStatus(groupMedicines(getDatabase().medicines)[0], now)).toBe('stopped')
+    expect(courseStatus(getDatabase(), groupMedicines(getDatabase().medicines)[0], now)).toBe('stopped')
   })
 
   it('warns that a schedule change only applies from today', async () => {
@@ -674,14 +674,14 @@ describe('the medicine form', () => {
     const repeat = groups.find((g) => g.groupId !== id)!
     expect(repeat.current.durationValue).toBe(7)
     expect(repeat.current.anchorDate).toBe(now)
-    expect(courseStatus(repeat, now)).toBe('active')
+    expect(courseStatus(getDatabase(), repeat, now)).toBe('active')
 
     // The course it repeats is untouched: same single version, same span.
     const source = groups.find((g) => g.groupId === id)!
     expect(source.records).toHaveLength(1)
     expect(source.current.durationValue).toBe(14)
     expect(source.current.anchorDate).toBe(shiftKey(now, -20))
-    expect(courseStatus(source, now)).toBe('finished')
+    expect(courseStatus(getDatabase(), source, now)).toBe('finished')
   })
 })
 
@@ -957,7 +957,7 @@ describe('finishing a course early', () => {
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
 
     expect(getDatabase().medicines[0].closedOn).toBeUndefined()
-    expect(courseStatus(groupMedicines(getDatabase().medicines)[0], now)).toBe('active')
+    expect(courseStatus(getDatabase(), groupMedicines(getDatabase().medicines)[0], now)).toBe('active')
     expect(id).toBeTruthy()
   })
 

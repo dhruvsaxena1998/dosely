@@ -18,7 +18,7 @@ export function History() {
 
   const rows = useMemo(() => {
     return groupMedicines(db.medicines)
-      .filter((g) => courseStatus(g, now) !== 'upcoming')
+      .filter((g) => courseStatus(db, g, now) !== 'upcoming')
       .map((g) => ({ group: g, tally: adherenceFor(db, g, now) }))
       .sort((a, b) => (a.group.current.name < b.group.current.name ? -1 : 1))
   }, [db, now])
@@ -30,12 +30,12 @@ export function History() {
     let first = now
     let last = now
     for (const g of groups) {
-      const span = groupSpan(g)
+      const span = groupSpan(db, g, now)
       first = minKey(first, span.start)
       last = maxKey(last, shiftKey(span.end, -1))
     }
     return { first, last }
-  }, [groups, now])
+  }, [db, groups, now])
   const days = useMemo(
     () => dayTallies(db, groups, bounds.first, shiftKey(bounds.last, 1), now),
     [db, groups, bounds, now],
@@ -63,7 +63,7 @@ export function History() {
               <div className="min-w-0 flex-1">
                 <h3 className="truncate text-[15px] font-semibold tracking-[-0.01em]">{group.current.name}</h3>
                 <p className="type-data mt-1 text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
-                  {describeGroupSpan(group)}
+                  {describeGroupSpan(db, group, now)}
                 </p>
                 <AdherenceBar tally={tally} />
                 <p className="type-data mt-2 text-[11px] text-muted-foreground">

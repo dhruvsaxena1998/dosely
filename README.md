@@ -321,14 +321,19 @@ cheapest place to catch a wrong start date.
 A duration can also be a **count of doses** instead of a stretch of calendar.
 Some prescriptions are written that way — a strip of ten tablets, ten
 physiotherapy sessions — and the date they end on is the consequence rather than
-the instruction. A counted course runs until it has scheduled the number it was
-given, so ten doses twice a day is five days, and ten doses three times a day is
-three days and a fourth holding one. The last day is partial on purpose: rounding
-up would schedule a tablet that is not in the strip.
+the instruction. A counted course runs until that many have been taken, so ten
+doses twice a day is five days if you take them all, and ten doses three times a
+day is three days and a fourth holding one. The last day is partial on purpose:
+rounding up would schedule a tablet that is not in the strip.
 
-Missing a dose does not hand a day back. The schedule is the prescription, not an
-inventory of what is left in the packet, and a course that grew itself a spare
-day every time a dose went untaken could never record one as missed.
+Only taking a dose spends the count. A skipped dose is still in the packet and so
+is a missed one, so the course grows a day for each and keeps turning up on Today
+until the strip is empty. The day that went by is still recorded as missed; what
+changes is that the tablet is owed again tomorrow rather than written off. Doses
+from today onward are assumed taken, which is what gives a course still under way
+an end date to print and to set reminders against, and is why that date moves when
+a dose does not happen. A counted course nobody ticks therefore never ends on its
+own; Finish or Stop is how it ends.
 
 There are no dependencies between medicines. A medicine prescribed a few days
 after another one is modelled as its own course with a later start date. If you

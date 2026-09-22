@@ -2,6 +2,7 @@ import type { DateKey } from '@/lib/dates'
 import { today } from '@/lib/dates'
 import type { MedicineGroup } from '@/lib/schedule'
 import { canResume, courseStatus, isDeleted } from '@/lib/schedule'
+import type { Database } from '@/types'
 
 /** A course-level action a medicine card can offer. */
 export type CourseAction = 'edit' | 'finish' | 'stop' | 'resume' | 'restart' | 'restore' | 'delete' | 'purge'
@@ -16,12 +17,12 @@ export type CourseAction = 'edit' | 'finish' | 'stop' | 'resume' | 'restart' | '
  * is still going somewhere. Spread across the JSX that draws them, those
  * relationships were only true by coincidence.
  */
-export function courseActions(g: MedicineGroup, ref: DateKey = today()): CourseAction[] {
+export function courseActions(db: Database, g: MedicineGroup, ref: DateKey = today()): CourseAction[] {
   // A deleted medicine is off the board entirely. Restore is the way back, and
   // the delete behind the delete is the way out for good.
   if (isDeleted(g)) return ['restore', 'purge']
 
-  const status = courseStatus(g, ref)
+  const status = courseStatus(db, g, ref)
   // Finish and Stop are the two ways out of a course that is under way, and they
   // differ by whether today counts. A course that has not started yet cannot have
   // today as its last day, so it is only offered the one that calls it off.
@@ -31,5 +32,5 @@ export function courseActions(g: MedicineGroup, ref: DateKey = today()): CourseA
   // Both halves of the way out of a closed course, divided by whether there is
   // any of it left. Resume returns you to the prescription you had; Start again
   // is a new prescription that happens to be the same medicine.
-  return [canResume(g, ref) ? 'resume' : 'restart', 'delete']
+  return [canResume(db, g, ref) ? 'resume' : 'restart', 'delete']
 }

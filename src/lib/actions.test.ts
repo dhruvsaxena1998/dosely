@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 import { shiftKey, today } from '@/lib/dates'
 import { courseActions } from '@/lib/actions'
 import { groupMedicines } from '@/lib/schedule'
-import type { MedicineRecord } from '@/types'
+import type { Database, MedicineRecord } from '@/types'
+
+const EMPTY: Database = { version: 1, medicines: [], log: {} }
 
 const now = today()
 
@@ -27,26 +29,26 @@ function group(overrides: Partial<MedicineRecord> = {}) {
 
 describe('what a card offers', () => {
   it('offers both ways out of a course that is under way', () => {
-    expect(courseActions(group(), now)).toEqual(['edit', 'finish', 'stop', 'delete'])
+    expect(courseActions(EMPTY, group(), now)).toEqual(['edit', 'finish', 'stop', 'delete'])
   })
 
   it('offers only Stop before the course has started', () => {
     const upcoming = { anchorDate: shiftKey(now, 3), effectiveFrom: shiftKey(now, 3) }
-    expect(courseActions(group(upcoming), now)).toEqual(['edit', 'stop', 'delete'])
+    expect(courseActions(EMPTY, group(upcoming), now)).toEqual(['edit', 'stop', 'delete'])
   })
 
   it('offers Start again rather than Resume on a course that was finished early', () => {
     const finished = { closedOn: shiftKey(now, 1), closedBy: 'completed' as const }
-    expect(courseActions(group(finished), now)).toEqual(['restart', 'delete'])
+    expect(courseActions(EMPTY, group(finished), now)).toEqual(['restart', 'delete'])
   })
 
   it('still offers Resume on a course that was stopped with days left', () => {
     const stopped = { closedOn: now, closedBy: 'stopped' as const }
-    expect(courseActions(group(stopped), now)).toEqual(['resume', 'delete'])
+    expect(courseActions(EMPTY, group(stopped), now)).toEqual(['resume', 'delete'])
   })
 
   it('takes a deleted medicine off the board entirely', () => {
-    expect(courseActions(group({ deletedAt: '2026-01-02T00:00:00.000Z' }), now)).toEqual([
+    expect(courseActions(EMPTY, group({ deletedAt: '2026-01-02T00:00:00.000Z' }), now)).toEqual([
       'restore',
       'purge',
     ])

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DateDurationUnit } from '@/lib/dates'
 import { courseEndFrom, shiftKey, today } from '@/lib/dates'
 import { describeLength } from '@/lib/describe'
+import type { SlotId } from '@/lib/slots'
 import {
   adherenceFor,
   canResume,
@@ -98,8 +99,8 @@ describe('editing', () => {
     updateMedicine(id, { ...calcium, slots: ['after-dinner'] })
 
     const group = groupMedicines(getDatabase().medicines)[0]
-    expect(scheduledSlotsOn(group, shiftKey(now, -1))).toEqual(['after-breakfast'])
-    expect(scheduledSlotsOn(group, now)).toEqual(['after-dinner'])
+    expect(scheduledSlotsOn(getDatabase(), group, shiftKey(now, -1))).toEqual(['after-breakfast'])
+    expect(scheduledSlotsOn(getDatabase(), group, now)).toEqual(['after-dinner'])
   })
 
   it('holds the original weekday when a weekly medicine is edited midway', () => {
@@ -124,8 +125,8 @@ describe('editing', () => {
     const group = groupMedicines(getDatabase().medicines)[0]
     // The fork keeps the anchor, so doses stay on the same weekday rather than
     // jumping to whatever day the edit happened on.
-    expect(scheduledSlotsOn(group, shiftKey(start, 21))).toEqual(['after-lunch'])
-    expect(scheduledSlotsOn(group, shiftKey(start, 22))).toEqual([])
+    expect(scheduledSlotsOn(getDatabase(), group, shiftKey(start, 21))).toEqual(['after-lunch'])
+    expect(scheduledSlotsOn(getDatabase(), group, shiftKey(start, 22))).toEqual([])
   })
 
   it('keeps ticks logged before the edit', () => {
@@ -152,8 +153,8 @@ describe('stopping, deleting and restarting', () => {
     stopMedicine(id)
 
     const group = groupMedicines(getDatabase().medicines)[0]
-    expect(scheduledSlotsOn(group, now)).toEqual([])
-    expect(scheduledSlotsOn(group, shiftKey(now, -1))).toEqual(['after-breakfast'])
+    expect(scheduledSlotsOn(getDatabase(), group, now)).toEqual([])
+    expect(scheduledSlotsOn(getDatabase(), group, shiftKey(now, -1))).toEqual(['after-breakfast'])
     expect(Object.keys(getDatabase().log)).toHaveLength(1)
   })
 
@@ -225,18 +226,18 @@ describe('resuming a stopped course', () => {
     const { id } = stoppedDaysAgo()
     resumeMedicine(id)
 
-    expect(scheduledSlotsOn(group(id), shiftKey(now, -8))).toEqual(['after-breakfast'])
+    expect(scheduledSlotsOn(getDatabase(), group(id), shiftKey(now, -8))).toEqual(['after-breakfast'])
     // The days between the stop and the resume are owned by no version at all.
-    expect(scheduledSlotsOn(group(id), shiftKey(now, -3))).toEqual([])
-    expect(scheduledSlotsOn(group(id), now)).toEqual(['after-breakfast'])
+    expect(scheduledSlotsOn(getDatabase(), group(id), shiftKey(now, -3))).toEqual([])
+    expect(scheduledSlotsOn(getDatabase(), group(id), now)).toEqual(['after-breakfast'])
   })
 
   it('moves the course back into running', () => {
     const { id } = stoppedDaysAgo()
-    expect(courseStatus(group(id), now)).toBe('stopped')
+    expect(courseStatus(getDatabase(), group(id), now)).toBe('stopped')
 
     resumeMedicine(id)
-    expect(courseStatus(group(id), now)).toBe('active')
+    expect(courseStatus(getDatabase(), group(id), now)).toBe('active')
   })
 
   it('ends the course when it was always going to end', () => {
@@ -246,8 +247,8 @@ describe('resuming a stopped course', () => {
 
     resumeMedicine(id)
 
-    expect(courseEnd(group(id).current)).toBe(end)
-    expect(groupSpan(group(id)).end).toBe(end)
+    expect(courseEnd(getDatabase(), group(id).current)).toBe(end)
+    expect(groupSpan(getDatabase(), group(id)).end).toBe(end)
   })
 
   it('holds the original weekday when a weekly course is resumed midweek', () => {
@@ -260,8 +261,8 @@ describe('resuming a stopped course', () => {
 
     // Four weeks after the anchor is a week from now, which the resumed version
     // covers. It lands on the anchor's weekday, not on the day of the resume.
-    expect(scheduledSlotsOn(group(id), shiftKey(input.anchorDate, 28))).toEqual(['after-breakfast'])
-    expect(scheduledSlotsOn(group(id), shiftKey(input.anchorDate, 29))).toEqual([])
+    expect(scheduledSlotsOn(getDatabase(), group(id), shiftKey(input.anchorDate, 28))).toEqual(['after-breakfast'])
+    expect(scheduledSlotsOn(getDatabase(), group(id), shiftKey(input.anchorDate, 29))).toEqual([])
   })
 
   it('leaves the pause out of the tally rather than counting it as missed', () => {
@@ -289,10 +290,10 @@ describe('resuming a stopped course', () => {
   it("brings today's doses back when the stop is undone the same day", () => {
     const id = addMedicine(calcium)
     stopMedicine(id)
-    expect(scheduledSlotsOn(group(id), now)).toEqual([])
+    expect(scheduledSlotsOn(getDatabase(), group(id), now)).toEqual([])
 
     resumeMedicine(id)
-    expect(scheduledSlotsOn(group(id), now)).toEqual(['after-breakfast'])
+    expect(scheduledSlotsOn(getDatabase(), group(id), now)).toEqual(['after-breakfast'])
   })
 
   it('can be stopped again afterwards', () => {
@@ -301,9 +302,9 @@ describe('resuming a stopped course', () => {
     resumeMedicine(id)
     stopMedicine(id)
 
-    expect(courseStatus(group(id), now)).toBe('stopped')
-    expect(scheduledSlotsOn(group(id), now)).toEqual([])
-    expect(scheduledSlotsOn(group(id), shiftKey(now, -1))).toEqual(['after-breakfast'])
+    expect(courseStatus(getDatabase(), group(id), now)).toBe('stopped')
+    expect(scheduledSlotsOn(getDatabase(), group(id), now)).toEqual([])
+    expect(scheduledSlotsOn(getDatabase(), group(id), shiftKey(now, -1))).toEqual(['after-breakfast'])
   })
 
   it('refuses a course whose original span has already run out', () => {
@@ -314,7 +315,7 @@ describe('resuming a stopped course', () => {
     resumeMedicine(id)
 
     expect(records(id)).toHaveLength(1)
-    expect(scheduledSlotsOn(group(id), now)).toEqual([])
+    expect(scheduledSlotsOn(getDatabase(), group(id), now)).toEqual([])
   })
 })
 
@@ -324,7 +325,7 @@ describe('a fork inheriting the group lifecycle', () => {
     stopMedicine(id)
     updateMedicine(id, { ...calcium, slots: ['after-dinner'] })
 
-    expect(courseStatus(group(id), now)).toBe('stopped')
+    expect(courseStatus(getDatabase(), group(id), now)).toBe('stopped')
   })
 
   it('keeps a deleted medicine deleted when its schedule is edited', () => {
@@ -340,7 +341,7 @@ describe('a fork inheriting the group lifecycle', () => {
     updateMedicine(id, { ...calcium, slots: ['after-dinner'] })
 
     expect(records(id)).toHaveLength(2)
-    expect(courseStatus(group(id), now)).toBe('active')
+    expect(courseStatus(getDatabase(), group(id), now)).toBe('active')
   })
 
   it('schedules nothing across a break the user asked for', () => {
@@ -366,9 +367,9 @@ describe('a fork inheriting the group lifecycle', () => {
     )
     updateMedicine(id, { ...calcium, anchorDate: shiftKey(now, -10), slots: ['after-dinner'] })
 
-    expect(courseStatus(group(id), now)).toBe('stopped')
-    expect(scheduledSlotsOn(group(id), shiftKey(now, -3))).toEqual([])
-    expect(scheduledSlotsOn(group(id), now)).toEqual([])
+    expect(courseStatus(getDatabase(), group(id), now)).toBe('stopped')
+    expect(scheduledSlotsOn(getDatabase(), group(id), shiftKey(now, -3))).toEqual([])
+    expect(scheduledSlotsOn(getDatabase(), group(id), now)).toEqual([])
   })
 
   it('still rewrites the name across a stopped course without forking', () => {
@@ -378,7 +379,7 @@ describe('a fork inheriting the group lifecycle', () => {
 
     expect(records(id)).toHaveLength(1)
     expect(records(id)[0].name).toBe('Calcium with D3 500')
-    expect(courseStatus(group(id), now)).toBe('stopped')
+    expect(courseStatus(getDatabase(), group(id), now)).toBe('stopped')
   })
 
   it('restores a medicine that was edited while deleted', () => {
@@ -388,7 +389,7 @@ describe('a fork inheriting the group lifecycle', () => {
     restoreMedicine(id)
 
     expect(isDeleted(group(id))).toBe(false)
-    expect(courseStatus(group(id), now)).toBe('active')
+    expect(courseStatus(getDatabase(), group(id), now)).toBe('active')
   })
 })
 
@@ -506,15 +507,44 @@ describe('a course counted in doses', () => {
     return { id, input }
   }
 
+  /**
+   * Answer every slot on the `days` before today: taken, bar the ones named,
+   * which are skipped.
+   */
+  function swallowed(id: string, days: number, skip: { date: string; slot: SlotId }[] = []) {
+    for (let back = days; back >= 1; back -= 1) {
+      const date = shiftKey(now, -back)
+      for (const slot of strip.slots) {
+        const skipped = skip.some((s) => s.date === date && s.slot === slot)
+        setDose(id, date, slot, skipped ? 'skipped' : 'taken')
+      }
+    }
+  }
+
   it('hands a fork what is left of the count, not the whole strip again', () => {
     const { id, input } = started({ durationValue: 20 })
+    // Ten doses came round before today. Eight went down and two were skipped.
+    swallowed(id, 5, [
+      { date: shiftKey(now, -4), slot: 'after-breakfast' },
+      { date: shiftKey(now, -2), slot: 'after-dinner' },
+    ])
     updateMedicine(id, { ...input, durationValue: 20, slots: ['after-breakfast'] })
 
     const forked = records(id).find((m) => m.effectiveFrom === now)!
-    // Ten of the twenty were scheduled across the five days before today.
-    expect(forked.durationValue).toBe(10)
+    // The two skipped are still in the strip, so twelve carry over rather than ten.
+    expect(forked.durationValue).toBe(12)
     expect(forked.durationUnit).toBe('doses')
-    expect(doseHistory(group(id))).toHaveLength(20)
+    // And the card still says twenty: eight taken and twelve to come.
+    expect(describeLength(getDatabase(), group(id))).toBe('20 doses')
+  })
+
+  it('hands a fork the whole strip when nothing was taken from it', () => {
+    const { id, input } = started()
+    // Five days of missed doses. All ten are still in the packet, so all ten carry over.
+    updateMedicine(id, { ...input, slots: ['after-breakfast'] })
+
+    const forked = records(id).find((m) => m.effectiveFrom === now)!
+    expect(forked.durationValue).toBe(10)
   })
 
   it('takes a number the user changed at its word', () => {
@@ -527,12 +557,14 @@ describe('a course counted in doses', () => {
 
   it('forks a course with nothing left rather than one with less than nothing', () => {
     const { id, input } = started()
+    // The whole strip went down over the five days.
+    swallowed(id, 5)
     updateMedicine(id, { ...input, slots: ['after-breakfast'] })
 
     const forked = records(id).find((m) => m.effectiveFrom === now)!
     expect(forked.durationValue).toBe(0)
-    expect(scheduledSlotsOn(group(id), now)).toEqual([])
-    expect(courseStatus(group(id), now)).toBe('finished')
+    expect(scheduledSlotsOn(getDatabase(), group(id), now)).toEqual([])
+    expect(courseStatus(getDatabase(), group(id), now)).toBe('finished')
   })
 
   it('leaves a course measured in calendar alone', () => {
@@ -545,6 +577,7 @@ describe('a course counted in doses', () => {
 
   it('resumes with the doses that are left, and carries them past the old end', () => {
     const { id } = started({ durationValue: 20 })
+    swallowed(id, 5)
     stopMedicine(id)
     resumeMedicine(id)
 
@@ -552,36 +585,37 @@ describe('a course counted in doses', () => {
     expect(resumed.durationValue).toBe(10)
     // Ten doses two a day from today, so the course now ends five days out
     // rather than where the first version would have run out.
-    expect(courseEnd(resumed)).toBe(shiftKey(now, 5))
-    expect(doseHistory(group(id))).toHaveLength(20)
+    expect(courseEnd(getDatabase(), resumed)).toBe(shiftKey(now, 5))
+    expect(doseHistory(getDatabase(), group(id))).toHaveLength(20)
   })
 
   it('offers a resume while the strip has anything in it', () => {
     const { id } = started({ durationValue: 20 })
     stopMedicine(id)
-    expect(canResume(group(id), now)).toBe(true)
+    expect(canResume(getDatabase(), group(id), now)).toBe(true)
 
     resumeMedicine(id)
     // Wind the count down to nothing and the offer goes with it.
     updateMedicine(id, { ...strip, durationValue: 0, slots: ['after-breakfast'] })
-    expect(canResume(group(id), now)).toBe(false)
+    expect(canResume(getDatabase(), group(id), now)).toBe(false)
   })
 
   it('ends with today when a counted course is finished early', () => {
     const { id } = started({ durationValue: 20, anchorDate: shiftKey(now, -2) })
+    swallowed(id, 2)
     finishMedicine(id)
 
     // Today is the last day of it, both doses included.
-    expect(scheduledSlotsOn(group(id), now)).toEqual(['after-breakfast', 'after-dinner'])
-    expect(scheduledSlotsOn(group(id), shiftKey(now, 1))).toEqual([])
-    expect(courseStatus(group(id), now)).toBe('finished')
+    expect(scheduledSlotsOn(getDatabase(), group(id), now)).toEqual(['after-breakfast', 'after-dinner'])
+    expect(scheduledSlotsOn(getDatabase(), group(id), shiftKey(now, 1))).toEqual([])
+    expect(courseStatus(getDatabase(), group(id), now)).toBe('finished')
     // Three days of two. The fourteen doses left in the strip are outside the
     // course now, so they are in no denominator and are never missed.
-    expect(doseHistory(group(id))).toHaveLength(6)
+    expect(doseHistory(getDatabase(), group(id))).toHaveLength(6)
     expect(adherenceFor(getDatabase(), group(id), now).total).toBe(6)
     // And the length it prints is what it held rather than what was written,
     // which is the same answer the span line has always given.
-    expect(describeLength(group(id))).toBe('6 doses')
+    expect(describeLength(getDatabase(), group(id))).toBe('6 doses')
   })
 
   it('brings the weekdays back with a resumed course', () => {
@@ -610,8 +644,8 @@ describe('finishing a course early', () => {
 
     expect(records(id)[0].closedOn).toBe(shiftKey(now, 1))
     expect(records(id)[0].closedBy).toBe('completed')
-    expect(scheduledSlotsOn(group(id), now)).toEqual(['after-breakfast'])
-    expect(scheduledSlotsOn(group(id), shiftKey(now, 1))).toEqual([])
+    expect(scheduledSlotsOn(getDatabase(), group(id), now)).toEqual(['after-breakfast'])
+    expect(scheduledSlotsOn(getDatabase(), group(id), shiftKey(now, 1))).toEqual([])
   })
 
   it('leaves a stop meaning exactly what it meant', () => {
@@ -620,16 +654,16 @@ describe('finishing a course early', () => {
 
     expect(records(id)[0].closedOn).toBe(now)
     expect(records(id)[0].closedBy).toBe('stopped')
-    expect(courseStatus(group(id), now)).toBe('stopped')
+    expect(courseStatus(getDatabase(), group(id), now)).toBe('stopped')
   })
 
   it('reads as finished from the day it was finished, not the day after', () => {
     const id = addMedicine(course)
     finishMedicine(id)
 
-    expect(courseStatus(group(id), now)).toBe('finished')
-    expect(courseStatus(group(id), shiftKey(now, 1))).toBe('finished')
-    expect(canResume(group(id), now)).toBe(false)
+    expect(courseStatus(getDatabase(), group(id), now)).toBe('finished')
+    expect(courseStatus(getDatabase(), group(id), shiftKey(now, 1))).toBe('finished')
+    expect(canResume(getDatabase(), group(id), now)).toBe(false)
   })
 
   it('keeps the dose ticked this morning inside the course', () => {
@@ -637,7 +671,7 @@ describe('finishing a course early', () => {
     setDose(id, now, 'after-breakfast', 'taken')
     finishMedicine(id)
 
-    expect(doseHistory(group(id)).some((d) => d.date === now)).toBe(true)
+    expect(doseHistory(getDatabase(), group(id)).some((d) => d.date === now)).toBe(true)
     expect(adherenceFor(getDatabase(), group(id), now).taken).toBe(1)
   })
 
@@ -658,6 +692,6 @@ describe('finishing a course early', () => {
 
     expect(group(id).current.closedBy).toBe('completed')
     expect(group(id).current.closedOn).toBe(shiftKey(now, 1))
-    expect(courseStatus(group(id), now)).toBe('finished')
+    expect(courseStatus(getDatabase(), group(id), now)).toBe('finished')
   })
 })

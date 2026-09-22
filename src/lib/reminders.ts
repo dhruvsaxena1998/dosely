@@ -186,7 +186,7 @@ export function slotsInUse(db: Database, ref: DateKey = today()): SlotId[] {
   const slots = new Set<SlotId>()
   for (const group of groupMedicines(db.medicines)) {
     if (isDeleted(group)) continue
-    const status = courseStatus(group, ref)
+    const status = courseStatus(db, group, ref)
     if (status !== 'active' && status !== 'upcoming') continue
     for (const slot of group.current.slots) slots.add(slot)
   }

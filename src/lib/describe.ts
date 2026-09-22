@@ -1,9 +1,10 @@
-import type { DurationUnit } from '@/lib/dates'
-import { formatShort, formatWithYear, shiftKey } from '@/lib/dates'
+import type { DateKey, DurationUnit } from '@/lib/dates'
+import { formatShort, formatWithYear, shiftKey, today } from '@/lib/dates'
 import type { Adherence, MedicineGroup } from '@/lib/schedule'
-import { doseHistory, groupSpan } from '@/lib/schedule'
+import { adherenceFor, groupSpan } from '@/lib/schedule'
 import type { Weekday } from '@/lib/weekdays'
 import { WEEKDAYS, isEveryDay, sortWeekdays, weekdayShort } from '@/lib/weekdays'
+import type { Database } from '@/types'
 
 const WEEKDAYS_ONLY: readonly Weekday[] = [1, 2, 3, 4, 5]
 const WEEKEND: readonly Weekday[] = [6, 7]
@@ -48,13 +49,19 @@ export function describeDuration(value: number, unit: DurationUnit): string {
  * version, because an edit hands the fork what is left: five doses on the record
  * of a course that was written for twenty is the remainder, not the
  * prescription. Adding the versions back up says twenty, which is what the
- * person was told and what the card should say. A course counted in calendar
- * reads straight off the record and walks nothing.
+ * person was told and what the card should say.
+ *
+ * What is added up is the doses the strip holds — taken, or still to come —
+ * rather than every dose the course ever scheduled. A dose skipped or missed
+ * stays in the packet and the schedule grows a day for it, so counting the
+ * scheduled days would say twelve of a strip of ten. A course counted in
+ * calendar reads straight off the record and walks nothing.
  */
-export function describeLength(g: MedicineGroup): string {
+export function describeLength(db: Database, g: MedicineGroup, ref: DateKey = today()): string {
   const m = g.current
   if (m.durationUnit !== 'doses') return describeDuration(m.durationValue, m.durationUnit)
-  return describeDuration(doseHistory(g).length, 'doses')
+  const tally = adherenceFor(db, g, ref)
+  return describeDuration(tally.taken + tally.pending, 'doses')
 }
 
 /** The span reads inclusively, so a course ending before 6 Oct shows as "to 5 Oct". */
@@ -63,8 +70,8 @@ export function describeSpan(start: string, endExclusive: string): string {
   return `${formatShort(start)} to ${formatWithYear(lastDay)}`
 }
 
-export function describeGroupSpan(g: MedicineGroup): string {
-  const { start, end } = groupSpan(g)
+export function describeGroupSpan(db: Database, g: MedicineGroup, ref: DateKey = today()): string {
+  const { start, end } = groupSpan(db, g, ref)
   return describeSpan(start, end)
 }
 

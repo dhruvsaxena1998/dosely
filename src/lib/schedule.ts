@@ -14,40 +14,102 @@ export interface MedicineGroup {
   records: MedicineRecord[]
 }
 
-export function courseEnd(m: MedicineRecord): DateKey {
+/**
+ * Where a version's course ends, exclusive.
+ *
+ * A course measured in calendar ends where the calendar says and nothing you do
+ * moves it. A course counted in doses ends where the count runs out, and the
+ * count is spent by taking, so where it ends is a fact about the log as much as
+ * about the record — which is why everything downstream of this takes the
+ * database, and why `ref` matters: it is the line between what happened and
+ * what is assumed to.
+ */
+export function courseEnd(db: Database, m: MedicineRecord, ref: DateKey = today()): DateKey {
   if (m.durationUnit !== 'doses') return courseEndFrom(m.anchorDate, m.durationValue, m.durationUnit)
-  const { lastDay } = countPlan(m)
-  return lastDay ? shiftKey(lastDay, 1) : m.effectiveFrom
+  return countPlan(db, m, ref).end
+}
+
+interface CountPlan {
+  /** The slots scheduled on every day the count reaches, in slot order, oldest day first. */
+  days: Map<DateKey, SlotId[]>
+  /** Exclusive. `effectiveFrom` when the count never lands anywhere. */
+  end: DateKey
 }
 
 /**
- * Where a count of doses runs out: the day the last one falls on, and how many
- * of that day's slots are left to hold it.
+ * The days a count of doses is spread over, and which slots each of them holds.
  *
- * Ten doses at three slots a day is three days and one more dose, so the fourth
- * dose day is partial. Rounding it up would schedule two tablets that are not in
- * the strip and rounding it down would end the prescription early, so the last
- * day keeps only the slots the count can pay for.
+ * A dose spends the count only by being taken. Ten tablets is ten tablets:
+ * skipping Tuesday's does not swallow it and neither does forgetting it, so the
+ * strip still holds ten less what actually went down, and the course runs on
+ * until it is empty. Doses from `ref` onward have not been answered yet and are
+ * projected as taken, which is what gives a course still under way a finite end
+ * to print, walk to and set reminders against — and is why that end moves by a
+ * day each time a dose does not happen.
  *
- * Counted from `effectiveFrom` rather than from the anchor, which is what lets a
+ * Ten doses at three slots a day is three days and one more, so the day the
+ * count runs out on is partial: it keeps only the slots the count can pay for,
+ * in slot order. Rounding it up would schedule a tablet that is not in the strip
+ * and rounding it down would end the prescription early.
+ *
+ * Walked from `effectiveFrom` rather than from the anchor, which is what lets a
  * fork be handed the remainder and count it out from the day it opens. The
  * anchor still decides the phase, so an edit never moves a weekly course off its
- * weekday.
+ * weekday. The walk stops at `closedOn`: a version that was stopped or superseded
+ * scheduled nothing past that day whatever was left in the strip, and what was
+ * left is the fork's or the resumption's to carry.
+ *
+ * A walk rather than arithmetic, because there is no formula for what someone
+ * did. It is reached from `isDoseDay` a few hundred times per month grid, so the
+ * plan is worked out once per database, record and reference day and looked up
+ * after that. The database is replaced on every write, so the cache empties
+ * itself exactly when it should.
  */
-function countPlan(m: MedicineRecord): { lastDay?: DateKey; lastDaySlots: number } {
-  const perDay = m.slots.length
-  const count = Math.floor(m.durationValue)
-  if (perDay < 1 || count < 1) return { lastDaySlots: 0 }
-  const rest = count % perDay
-  const days = Math.floor(count / perDay) + (rest > 0 ? 1 : 0)
-  return { lastDay: nthPatternDay(m, m.effectiveFrom, days), lastDaySlots: rest === 0 ? perDay : rest }
+function countPlan(db: Database, m: MedicineRecord, ref: DateKey): CountPlan {
+  let byRecord = planCache.get(db)
+  if (!byRecord) {
+    byRecord = new WeakMap()
+    planCache.set(db, byRecord)
+  }
+  let byRef = byRecord.get(m)
+  if (!byRef) {
+    byRef = new Map()
+    byRecord.set(m, byRef)
+  }
+  const cached = byRef.get(ref)
+  if (cached) return cached
+  const plan = walkCount(db, m, ref)
+  byRef.set(ref, plan)
+  return plan
+}
+
+const planCache = new WeakMap<Database, WeakMap<MedicineRecord, Map<DateKey, CountPlan>>>()
+
+function walkCount(db: Database, m: MedicineRecord, ref: DateKey): CountPlan {
+  const days = new Map<DateKey, SlotId[]>()
+  const slots = sortSlots(m.slots)
+  let remaining = Math.floor(m.durationValue)
+  let last: DateKey | undefined
+  let cursor = slots.length > 0 && remaining > 0 ? nextPatternDay(m, m.effectiveFrom) : undefined
+  while (cursor && remaining > 0 && (!m.closedOn || cursor < m.closedOn)) {
+    const held = slots.slice(0, Math.min(slots.length, remaining))
+    days.set(cursor, held)
+    for (const slot of held) {
+      const entry = lookupDose(db, m.groupId, cursor, slot)
+      // Taken spends. Skipped and missed leave the tablet where it was. A dose
+      // nobody has answered yet is assumed to be taken, but only from today on;
+      // before today, no answer is a miss.
+      if (entry ? entry.state === 'taken' : cursor >= ref) remaining -= 1
+    }
+    last = cursor
+    cursor = nextPatternDay(m, shiftKey(cursor, 1))
+  }
+  return { days, end: last ? shiftKey(last, 1) : m.effectiveFrom }
 }
 
 /**
  * Whether the repeat and the weekdays land a dose on this date, with no regard
- * for how long the course runs. The half of `isDoseDay` that a count is allowed
- * to ask, because asking the other half would mean knowing the end of a course
- * in order to work out the end of a course.
+ * for how long the course runs.
  */
 function onPattern(m: ScheduleShape, date: DateKey): boolean {
   const offset = daysBetween(m.anchorDate, date)
@@ -56,54 +118,36 @@ function onPattern(m: ScheduleShape, date: DateKey): boolean {
 }
 
 /**
- * The nth day on or after `from` that the pattern falls on, counting from one.
+ * The first day on or after `from` that the pattern falls on.
  *
- * Arithmetic rather than a walk, because this is reached from `courseEnd`, which
- * is reached from `isDoseDay`, which a month of grid cells calls a few hundred
- * times. A plain repeat is one multiplication. A set of weekdays is a whole
- * number of weeks plus an offset from the cycle of chosen days.
- *
- * The third case is a repeat above one combined with a weekday set, which the
- * form never writes and an imported record can still hold. It is walked, one
- * repeat at a time, and given up on after seven consecutive misses: seven steps
- * cover every weekday the cycle can reach, so a pattern still dry by then —
- * every 7 days from a Monday, filtered to Tuesdays — never fires at all.
+ * A plain repeat is one multiplication. A set of weekdays is walked from there,
+ * one repeat at a time, and given up on after seven consecutive misses: seven
+ * steps reach every weekday the cycle can, so a pattern still dry by then —
+ * every 7 days from a Monday, filtered to Tuesdays — never fires at all. The
+ * form never writes that shape, but an imported record can hold it.
  */
-function nthPatternDay(m: ScheduleShape, from: DateKey, n: number): DateKey | undefined {
-  if (n < 1) return undefined
+function nextPatternDay(m: ScheduleShape, from: DateKey): DateKey | undefined {
   const step = m.repeatEveryDays
   const gap = Math.max(0, daysBetween(m.anchorDate, from))
-  const first = shiftKey(m.anchorDate, Math.ceil(gap / step) * step)
-  if (!m.weekdays || isEveryDay(m.weekdays)) return shiftKey(first, (n - 1) * step)
-  if (step === 1) {
-    const start = weekdayOf(first)
-    const offsets = sortWeekdays(m.weekdays)
-      .map((d) => (d - start + 7) % 7)
-      .sort((a, b) => a - b)
-    return shiftKey(first, Math.floor((n - 1) / offsets.length) * 7 + offsets[(n - 1) % offsets.length])
-  }
-  let cursor = first
-  let dry = 0
-  let seen = 0
-  while (dry < 7) {
-    if (m.weekdays.includes(weekdayOf(cursor))) {
-      seen += 1
-      if (seen === n) return cursor
-      dry = 0
-    } else dry += 1
+  let cursor = shiftKey(m.anchorDate, Math.ceil(gap / step) * step)
+  if (!m.weekdays || isEveryDay(m.weekdays)) return cursor
+  for (let dry = 0; dry < 7; dry += 1) {
+    if (m.weekdays.includes(weekdayOf(cursor))) return cursor
     cursor = shiftKey(cursor, step)
   }
   return undefined
 }
 
 /** `[from, to)` — the dates this version is responsible for. */
-export function recordWindow(m: MedicineRecord): { from: DateKey; to: DateKey } {
-  const to = m.closedOn ? minKey(courseEnd(m), m.closedOn) : courseEnd(m)
+export function recordWindow(db: Database, m: MedicineRecord, ref: DateKey = today()): { from: DateKey; to: DateKey } {
+  const end = courseEnd(db, m, ref)
+  const to = m.closedOn ? minKey(end, m.closedOn) : end
   return { from: m.effectiveFrom, to: maxKey(to, m.effectiveFrom) }
 }
 
-export function isDoseDay(m: MedicineRecord, date: DateKey): boolean {
-  const { from, to } = recordWindow(m)
+export function isDoseDay(db: Database, m: MedicineRecord, date: DateKey, ref: DateKey = today()): boolean {
+  if (m.durationUnit === 'doses') return countPlan(db, m, ref).days.has(date)
+  const { from, to } = recordWindow(db, m, ref)
   if (date < from || date >= to) return false
   return onPattern(m, date)
 }
@@ -116,32 +160,29 @@ export function isDoseDay(m: MedicineRecord, date: DateKey): boolean {
  * here, so the Today screen, the tallies and the history cannot disagree about
  * the day a count runs out on.
  */
-export function slotsOn(m: MedicineRecord, date: DateKey): SlotId[] {
-  if (!isDoseDay(m, date)) return []
-  const slots = sortSlots(m.slots)
-  if (m.durationUnit !== 'doses') return slots
-  const plan = countPlan(m)
-  return date === plan.lastDay ? slots.slice(0, plan.lastDaySlots) : slots
+export function slotsOn(db: Database, m: MedicineRecord, date: DateKey, ref: DateKey = today()): SlotId[] {
+  if (m.durationUnit === 'doses') return countPlan(db, m, ref).days.get(date) ?? []
+  return isDoseDay(db, m, date, ref) ? sortSlots(m.slots) : []
 }
 
 /**
- * How many doses this version has scheduled before `date`, which for a counted
- * course is how much of the count is spent. What was ticked has nothing to do
- * with it: a missed dose is a missed dose, not a tablet still owed.
+ * What is left of a counted course before `date`, and nothing for a course
+ * counted in days.
+ *
+ * Only what was actually taken has left the strip. Nothing before `date` is
+ * assumed, so this is what a fork or a resumption opening on that day has to
+ * carry — a dose still pending this morning is still in the packet.
  */
-export function dosesBefore(m: MedicineRecord, date: DateKey): number {
-  const { from, to } = recordWindow(m)
-  let spent = 0
-  for (let cursor = from; cursor < to && cursor < date; cursor = shiftKey(cursor, 1)) {
-    spent += slotsOn(m, cursor).length
-  }
-  return spent
-}
-
-/** What is left of a counted course, and nothing for a course counted in days. */
-export function dosesLeft(m: MedicineRecord, date: DateKey = today()): number | undefined {
+export function dosesLeft(db: Database, m: MedicineRecord, date: DateKey = today()): number | undefined {
   if (m.durationUnit !== 'doses') return undefined
-  return Math.max(0, Math.floor(m.durationValue) - dosesBefore(m, date))
+  let taken = 0
+  for (const [day, slots] of countPlan(db, m, date).days) {
+    if (day >= date) break
+    for (const slot of slots) {
+      if (lookupDose(db, m.groupId, day, slot)?.state === 'taken') taken += 1
+    }
+  }
+  return Math.max(0, Math.floor(m.durationValue) - taken)
 }
 
 /** The fields that decide which days and slots a version schedules. */
@@ -214,11 +255,11 @@ export function closureOf(g: MedicineGroup, m: MedicineRecord): Closure | undefi
 }
 
 /** `[start, end)` across every version of the medicine. */
-export function groupSpan(g: MedicineGroup): { start: DateKey; end: DateKey } {
+export function groupSpan(db: Database, g: MedicineGroup, ref: DateKey = today()): { start: DateKey; end: DateKey } {
   let start = g.records[0].effectiveFrom
   let end = start
   for (const m of g.records) {
-    const w = recordWindow(m)
+    const w = recordWindow(db, m, ref)
     start = minKey(start, w.from)
     end = maxKey(end, w.to)
   }
@@ -226,34 +267,34 @@ export function groupSpan(g: MedicineGroup): { start: DateKey; end: DateKey } {
 }
 
 /** Exactly one version owns any given date, because their windows never overlap. */
-export function recordForDate(g: MedicineGroup, date: DateKey): MedicineRecord | undefined {
+export function recordForDate(db: Database, g: MedicineGroup, date: DateKey, ref: DateKey = today()): MedicineRecord | undefined {
   return g.records.find((m) => {
-    const { from, to } = recordWindow(m)
+    const { from, to } = recordWindow(db, m, ref)
     return date >= from && date < to
   })
 }
 
-export function scheduledSlotsOn(g: MedicineGroup, date: DateKey): SlotId[] {
-  const record = recordForDate(g, date)
-  return record ? slotsOn(record, date) : []
+export function scheduledSlotsOn(db: Database, g: MedicineGroup, date: DateKey, ref: DateKey = today()): SlotId[] {
+  const record = recordForDate(db, g, date, ref)
+  return record ? slotsOn(db, record, date, ref) : []
 }
 
-export function nextDueDate(g: MedicineGroup, from: DateKey = today()): DateKey | undefined {
-  const { start, end } = groupSpan(g)
+export function nextDueDate(db: Database, g: MedicineGroup, from: DateKey = today()): DateKey | undefined {
+  const { start, end } = groupSpan(db, g, from)
   let cursor = maxKey(from, start)
   while (cursor < end) {
-    if (scheduledSlotsOn(g, cursor).length > 0) return cursor
+    if (scheduledSlotsOn(db, g, cursor, from).length > 0) return cursor
     cursor = shiftKey(cursor, 1)
   }
   return undefined
 }
 
 /** The last date this medicine ever schedules a dose, scanning back from its end. */
-export function lastDueDate(g: MedicineGroup): DateKey | undefined {
-  const { start, end } = groupSpan(g)
+export function lastDueDate(db: Database, g: MedicineGroup, ref: DateKey = today()): DateKey | undefined {
+  const { start, end } = groupSpan(db, g, ref)
   let cursor = shiftKey(end, -1)
   while (cursor >= start) {
-    if (scheduledSlotsOn(g, cursor).length > 0) return cursor
+    if (scheduledSlotsOn(db, g, cursor, ref).length > 0) return cursor
     cursor = shiftKey(cursor, -1)
   }
   return undefined
@@ -268,7 +309,7 @@ export function scheduleHorizon(db: Database, ref: DateKey = today()): DateKey {
   let horizon = ref
   for (const g of groupMedicines(db.medicines)) {
     if (isDeleted(g)) continue
-    const last = lastDueDate(g)
+    const last = lastDueDate(db, g, ref)
     if (last) horizon = maxKey(horizon, last)
   }
   return horizon
@@ -288,8 +329,8 @@ function completedOn(g: MedicineGroup): DateKey | undefined {
   return shiftKey(closed, -1)
 }
 
-export function courseStatus(g: MedicineGroup, ref: DateKey = today()): CourseStatus {
-  const { start, end } = groupSpan(g)
+export function courseStatus(db: Database, g: MedicineGroup, ref: DateKey = today()): CourseStatus {
+  const { start, end } = groupSpan(db, g, ref)
   if (ref < start) return 'upcoming'
   // A course finished early is finished from the moment it was finished, and its
   // window still holds the rest of that day. The two are not in conflict: today's
@@ -303,8 +344,12 @@ export function courseStatus(g: MedicineGroup, ref: DateKey = today()): CourseSt
   const closed = g.current.closedOn
   if (!closed || closureOf(g, g.current) !== 'stopped') return 'finished'
   // A stop landing on or after the day the course was going to end anyway cut
-  // nothing short. Abandoned and completed stay worth telling apart.
-  return closed < courseEnd(g.current) ? 'stopped' : 'finished'
+  // nothing short. Abandoned and completed stay worth telling apart. For a
+  // count, the same question is whether the strip still had anything in it on
+  // the day of the stop.
+  const left = dosesLeft(db, g.current, closed)
+  if (left !== undefined) return left > 0 ? 'stopped' : 'finished'
+  return closed < courseEnd(db, g.current, ref) ? 'stopped' : 'finished'
 }
 
 /**
@@ -319,12 +364,10 @@ export function courseStatus(g: MedicineGroup, ref: DateKey = today()): CourseSt
  * What is left of a counted course is doses rather than days, and no amount of
  * waiting spends those, so the same question is asked of the strip instead.
  */
-export function canResume(g: MedicineGroup, ref: DateKey = today()): boolean {
-  if (courseStatus(g, ref) !== 'stopped') return false
-  // A counted course has doses left rather than days left, and a pause spends
-  // neither. It can be resumed for as long as there is anything in the strip.
-  const left = dosesLeft(g.current, ref)
-  return left === undefined ? ref < courseEnd(g.current) : left > 0
+export function canResume(db: Database, g: MedicineGroup, ref: DateKey = today()): boolean {
+  if (courseStatus(db, g, ref) !== 'stopped') return false
+  const left = dosesLeft(db, g.current, ref)
+  return left === undefined ? ref < courseEnd(db, g.current, ref) : left > 0
 }
 
 export function logKey(groupId: string, date: DateKey, slot: SlotId): string {
@@ -342,13 +385,14 @@ export function lookupDose(db: Database, groupId: string, date: DateKey, slot: S
  * it, which is the claim a card makes when it says a dose is due.
  *
  * A skipped dose counts as answered. The decision has been made, and asking
- * again tomorrow would only be nagging.
+ * again tomorrow would only be nagging — though for a counted course the
+ * tablet is still in the strip, and the schedule has already grown a day for it.
  */
 export function nextOpenDate(db: Database, g: MedicineGroup, from: DateKey = today()): DateKey | undefined {
-  const { start, end } = groupSpan(g)
+  const { start, end } = groupSpan(db, g, from)
   let cursor = maxKey(from, start)
   while (cursor < end) {
-    const slots = scheduledSlotsOn(g, cursor)
+    const slots = scheduledSlotsOn(db, g, cursor, from)
     if (slots.some((slot) => !lookupDose(db, g.groupId, cursor, slot))) return cursor
     cursor = shiftKey(cursor, 1)
   }
@@ -388,9 +432,9 @@ export function dosesOn(db: Database, date: DateKey, ref: DateKey = today()): Do
 export function dosesOnFor(db: Database, groups: readonly MedicineGroup[], date: DateKey, ref: DateKey = today()): Dose[] {
   const doses: Dose[] = []
   for (const g of groups) {
-    const record = recordForDate(g, date)
+    const record = recordForDate(db, g, date, ref)
     if (!record) continue
-    for (const slot of slotsOn(record, date)) {
+    for (const slot of slotsOn(db, record, date, ref)) {
       const entry = lookupDose(db, g.groupId, date, slot)
       doses.push({
         group: g,
@@ -429,11 +473,11 @@ export function dayTallies(
 ): Map<DateKey, DayTally> {
   const out = new Map<DateKey, DayTally>()
   for (const g of groups) {
-    const span = groupSpan(g)
+    const span = groupSpan(db, g, ref)
     const start = maxKey(from, span.start)
     const end = minKey(to, span.end)
     for (let cursor = start; cursor < end; cursor = shiftKey(cursor, 1)) {
-      const slots = scheduledSlotsOn(g, cursor)
+      const slots = scheduledSlotsOn(db, g, cursor, ref)
       if (slots.length === 0) continue
       const tally = out.get(cursor) ?? { scheduled: 0, taken: 0, skipped: 0, missed: 0, pending: 0 }
       for (const slot of slots) {
@@ -459,7 +503,7 @@ export interface Adherence {
 
 export function adherenceFor(db: Database, g: MedicineGroup, ref: DateKey = today()): Adherence {
   const tally: Adherence = { taken: 0, skipped: 0, missed: 0, pending: 0, total: 0 }
-  for (const { date, slot } of doseHistory(g)) {
+  for (const { date, slot } of doseHistory(db, g, ref)) {
     tally.total += 1
     const entry = lookupDose(db, g.groupId, date, slot)
     if (entry) tally[entry.state] += 1
@@ -470,11 +514,11 @@ export function adherenceFor(db: Database, g: MedicineGroup, ref: DateKey = toda
 }
 
 /** Every dose the medicine has ever scheduled, across all its versions. */
-export function doseHistory(g: MedicineGroup): { date: DateKey; slot: SlotId }[] {
+export function doseHistory(db: Database, g: MedicineGroup, ref: DateKey = today()): { date: DateKey; slot: SlotId }[] {
   const out: { date: DateKey; slot: SlotId }[] = []
-  const { start, end } = groupSpan(g)
+  const { start, end } = groupSpan(db, g, ref)
   for (let cursor = start; cursor < end; cursor = shiftKey(cursor, 1)) {
-    for (const slot of scheduledSlotsOn(g, cursor)) out.push({ date: cursor, slot })
+    for (const slot of scheduledSlotsOn(db, g, cursor, ref)) out.push({ date: cursor, slot })
   }
   return out
 }

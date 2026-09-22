@@ -30,7 +30,7 @@ export function MedicineHistory() {
     if (!group) return []
     const byDate = new Map<string, { slot: SlotId; outcome: DoseOutcome; at?: string }[]>()
     // History stops at today. Doses still to come are counted in "Left", not listed.
-    for (const { date, slot } of doseHistory(group).filter((d) => d.date <= now)) {
+    for (const { date, slot } of doseHistory(db, group, now).filter((d) => d.date <= now)) {
       const entry = lookupDose(db, group.groupId, date, slot)
       const outcome: DoseOutcome = entry ? entry.state : date < now ? 'missed' : 'pending'
       const list = byDate.get(date)
@@ -41,7 +41,7 @@ export function MedicineHistory() {
     return [...byDate.entries()].sort((a, b) => (a[0] < b[0] ? 1 : -1))
   }, [db, group, now])
 
-  const span = useMemo(() => (group ? groupSpan(group) : undefined), [group])
+  const span = useMemo(() => (group ? groupSpan(db, group, now) : undefined), [db, group, now])
   const cells = useMemo(
     () => (group && span ? dayTallies(db, [group], span.start, span.end, now) : new Map()),
     [db, group, span, now],
@@ -84,8 +84,8 @@ export function MedicineHistory() {
           <MetaLine
             parts={[
               describeRepeat(m),
-              describeLength(group),
-              describeGroupSpan(group),
+              describeLength(db, group, now),
+              describeGroupSpan(db, group, now),
             ]}
           />
           <AdherenceBar tally={tally} />
