@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, Download, Upload } from 'lucide-react'
+import { About } from '@/components/About'
 import { Appearance as LightAndDark } from '@/components/Appearance'
 import { AppUpdate } from '@/components/AppUpdate'
 import { Changelog } from '@/components/Changelog'
@@ -85,11 +86,17 @@ const PAGES: Page[] = [
   {
     id: 'about',
     title: 'About',
-    Summary: () => "What's new",
+    Summary: () => "Who made it, and what's new",
     Body: function AboutBody() {
-      // No preamble. A dated list of changes under a heading that says About
-      // does not need a paragraph explaining that it is a dated list of changes.
-      return <Changelog />
+      return (
+        <>
+          <About />
+          <div className="mt-8">
+            <Heading>What&apos;s new</Heading>
+            <Changelog />
+          </div>
+        </>
+      )
     },
   },
 ]

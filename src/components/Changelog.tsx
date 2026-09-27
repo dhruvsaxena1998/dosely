@@ -2,27 +2,29 @@ import { CHANGELOG } from '@/lib/changelog'
 import { formatWithYear } from '@/lib/dates'
 
 /**
- * What has changed lately.
+ * What has changed lately, one bullet at a time.
  *
- * It used to be shut until asked for, because the build id sat directly above
- * it and was the line people came to that section to read — a list of things
- * already installed would have pushed it up the screen every visit to answer a
- * question nobody had. The build id is on the settings screen now and this has
- * a page of its own, reached by choosing to read exactly this, so a fold here
- * would be a lid on the only thing behind the door.
+ * Bullets rather than the hairline this used to hang the lines off. A rule down
+ * the left says "these belong together", which is the wrong thing to say about
+ * a list read by skipping: a dot in front of every line is where the eye
+ * returns to, and half of these are a sentence long.
  */
 export function Changelog() {
   return (
-    <div className="space-y-3.5">
+    <div className="space-y-4">
       {CHANGELOG.map((release) => (
         <div key={release.on}>
           <p className="type-data text-[11px] text-muted-foreground/70">{formatWithYear(release.on)}</p>
-          {/* A hairline down the left does the work a bullet would, and keeps
-              the lines reading as one dated group. */}
-          <ul className="mt-1.5 space-y-1 border-l-[length:var(--border-weight)] border-border pl-3">
+          <ul className="mt-1.5 space-y-1.5">
             {release.lines.map((line) => (
-              <li key={line} className="text-xs leading-relaxed text-muted-foreground">
-                {line}
+              <li key={line} className="flex gap-2">
+                {/* Sized off the line's own type so it sits on the first line's
+                    x-height rather than drifting as the text wraps. */}
+                <span
+                  aria-hidden
+                  className="mt-[0.5em] size-1 shrink-0 rounded-full bg-muted-foreground/50"
+                />
+                <span className="text-xs leading-relaxed text-muted-foreground">{line}</span>
               </li>
             ))}
           </ul>
