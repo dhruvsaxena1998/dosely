@@ -9,8 +9,30 @@ const STORAGE_KEY = 'dosely.db.v1'
 
 const EMPTY: Database = { version: 1, medicines: [], log: {} }
 
+/**
+ * A v4 UUID, without requiring a secure context to get one.
+ *
+ * `crypto.randomUUID` is the one-line version and it is only handed out over
+ * https or on localhost. A phone pointed at the dev server on the LAN is
+ * neither, and nor is Safari before 15.4 — so the call is simply not a function
+ * there, and the first press of Add throws before anything is written. Every
+ * medicine and every dose is keyed by one of these, so an id the app cannot
+ * mint is an app that silently refuses to remember anything.
+ *
+ * `getRandomValues` carries no such condition. It is already what the reminder
+ * topic is minted from, so the safe half of the API was in the codebase before
+ * the unsafe half was.
+ */
 function newId(): string {
-  return crypto.randomUUID()
+  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID()
+
+  const bytes = crypto.getRandomValues(new Uint8Array(16))
+  // What the two fixed fields of a v4 UUID are: version 4 in the high nibble of
+  // byte 6, variant 1 in the top two bits of byte 8.
+  bytes[6] = (bytes[6] & 0x0f) | 0x40
+  bytes[8] = (bytes[8] & 0x3f) | 0x80
+  const hex = [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('')
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
 }
 
 function read(): Database {
