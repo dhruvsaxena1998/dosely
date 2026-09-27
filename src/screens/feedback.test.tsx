@@ -29,6 +29,15 @@ vi.mock('web-haptics', async (importOriginal) => {
 
 const now = today()
 
+/** Three positions is not worth a door, so it is on the settings screen itself. */
+function openFeedback() {
+  return render(
+    <MemoryRouter>
+      <Settings />
+    </MemoryRouter>,
+  )
+}
+
 function renderToday() {
   return render(
     <MemoryRouter>
@@ -57,14 +66,9 @@ beforeEach(() => {
 
 describe('the feedback setting', () => {
   it('offers three positions and shows which one is on', () => {
-    render(
-      <MemoryRouter>
-        <Settings />
-      </MemoryRouter>,
-    )
+    openFeedback()
 
     const group = screen.getByRole('radiogroup', { name: 'Feedback' })
-    // Scoped: the Reminders section has an Off of its own on this screen.
     expect(within(group).getByRole('radio', { name: 'Off' })).toBeTruthy()
     expect(screen.getByRole('radio', { name: 'Haptic' })).toBeTruthy()
     expect(screen.getByRole('radio', { name: 'And sound' })).toBeTruthy()
@@ -74,11 +78,7 @@ describe('the feedback setting', () => {
 
   it('changes the setting, and answers as it is chosen', async () => {
     const user = userEvent.setup()
-    render(
-      <MemoryRouter>
-        <Settings />
-      </MemoryRouter>,
-    )
+    openFeedback()
 
     await user.click(screen.getByRole('radio', { name: 'Haptic' }))
 
@@ -89,11 +89,7 @@ describe('the feedback setting', () => {
 
   it('goes silent when it is turned off', async () => {
     const user = userEvent.setup()
-    render(
-      <MemoryRouter>
-        <Settings />
-      </MemoryRouter>,
-    )
+    openFeedback()
 
     const group = screen.getByRole('radiogroup', { name: 'Feedback' })
     await user.click(within(group).getByRole('radio', { name: 'Off' }))

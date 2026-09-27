@@ -17,6 +17,45 @@ export type Release = {
  */
 export const CHANGELOG: Release[] = [
   {
+    on: '2026-09-27',
+    lines: [
+      'Medicines and History are one tab. Tap a medicine for its record and the buttons that end or restart it.',
+      'The month of pockets folds into the top of the Medicines list, with the month\u2019s score showing while it is shut.',
+      'Settings fits on one screen. Appearance, Reminders and About open a page of their own.',
+      'Adding a medicine works again on an address without https, and on older iPhones.',
+    ],
+  },
+  {
+    on: '2026-09-22',
+    lines: [
+      'A dose you skip or miss stays in the packet. A course counted in doses runs until the count is actually taken.',
+    ],
+  },
+  {
+    on: '2026-09-20',
+    lines: [
+      'Reminders, three days at a time, through the ntfy app on your phone.',
+      'Tapping a reminder lands somewhere that knows what to do next, and reminders can be synced by hand.',
+      'Prescribe a course in doses rather than days \u2014 a strip of ten is ten doses.',
+      'Finish a course early and have it read as completed rather than cut short.',
+    ],
+  },
+  {
+    on: '2026-09-16',
+    lines: [
+      'Copy your live prescription as plain text, to paste into a chat.',
+      'Correct a dose up to a fortnight back, rather than three days.',
+      'Every medicine card carries a pocket showing how the whole course has gone.',
+    ],
+  },
+  {
+    on: '2026-09-10',
+    lines: [
+      'Repeat on chosen days of the week \u2014 Mon, Wed and Fri rather than every third day.',
+      'A month of pockets, one per day, for every course and for each on its own.',
+    ],
+  },
+  {
     on: '2026-09-02',
     lines: [
       'Take a whole slot with one press on its heading.',

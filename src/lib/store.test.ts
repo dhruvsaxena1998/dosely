@@ -695,3 +695,43 @@ describe('finishing a course early', () => {
     expect(courseStatus(getDatabase(), group(id), now)).toBe('finished')
   })
 })
+
+/**
+ * `crypto.randomUUID` is a secure-context API. A phone pointed at the dev
+ * server over the LAN, and Safari before 15.4, do not get one — and an id the
+ * app cannot mint is an app that cannot save a medicine.
+ */
+describe('minting an id where randomUUID is not on offer', () => {
+  /** What every origin has, secure or not. */
+  function withoutRandomUUID() {
+    const original = crypto.randomUUID
+    Object.defineProperty(crypto, 'randomUUID', { value: undefined, configurable: true })
+    return () => Object.defineProperty(crypto, 'randomUUID', { value: original, configurable: true })
+  }
+
+  it('still saves the medicine, under a v4 uuid of its own making', () => {
+    const restore = withoutRandomUUID()
+    try {
+      const id = addMedicine(calcium)
+
+      expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
+      expect(getDatabase().medicines).toHaveLength(1)
+      expect(group(id).current.name).toBe('Calcium with D3')
+    } finally {
+      restore()
+    }
+  })
+
+  it('does not hand the same id to two medicines', () => {
+    const restore = withoutRandomUUID()
+    try {
+      const ids = [addMedicine(calcium), addMedicine(calcium), addMedicine(calcium)]
+      // The record ids matter as much as the group ids: the log is keyed by one
+      // and the versions by the other.
+      const all = [...ids, ...getDatabase().medicines.map((m) => m.id)]
+      expect(new Set(all).size).toBe(all.length)
+    } finally {
+      restore()
+    }
+  })
+})

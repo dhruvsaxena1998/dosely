@@ -3,9 +3,8 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import App from '@/App'
-import { History } from '@/screens/History'
+import { Medicine } from '@/screens/Medicine'
 import { MedicineForm } from '@/screens/MedicineForm'
-import { MedicineHistory } from '@/screens/MedicineHistory'
 import { Medicines } from '@/screens/Medicines'
 import { formatShort, formatWithYear, shiftKey, today } from '@/lib/dates'
 import { WEEKDAYS, weekdayOf } from '@/lib/weekdays'
@@ -33,9 +32,34 @@ async function keepOnly(user: ReturnType<typeof userEvent.setup>, date: string) 
   }
 }
 
+/**
+ * Both halves of the merged tab, so a press that walks from the list to a
+ * medicine's own page actually lands somewhere.
+ */
+function tab(path = '/medicines') {
+  return render(
+    <MemoryRouter initialEntries={[path]}>
+      <Routes>
+        <Route path="/medicines" element={<Medicines />} />
+        <Route path="/medicines/:groupId" element={<Medicine />} />
+      </Routes>
+    </MemoryRouter>,
+  )
+}
+
 /** The Archive is folded until asked for, so anything in it takes a press first. */
 async function openArchive(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole('button', { name: /^Archive/ }))
+}
+
+/** The calendar is folded too: the list is what the screen is for. */
+async function openCalendar(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole('button', { name: /^This month/ }))
+}
+
+/** A card is the door to the course, and the buttons are all on the other side. */
+async function openCard(user: ReturnType<typeof userEvent.setup>, name: string) {
+  await user.click(screen.getByRole('link', { name: new RegExp(name) }))
 }
 
 beforeEach(() => {
@@ -45,7 +69,7 @@ beforeEach(() => {
 describe('the Medicines screen', () => {
   it('shows each course with its schedule and next due date', () => {
     loadExamples()
-    at('/medicines', <Medicines />, '/medicines')
+    tab()
 
     expect(screen.getByText('Running')).toBeTruthy()
     const card = screen.getByText('Vitamin B12').closest('article')!
@@ -64,10 +88,12 @@ describe('the Medicines screen', () => {
       durationValue: 7,
       durationUnit: 'days',
     })
-    at('/medicines', <Medicines />, '/medicines')
+    tab()
     await openArchive(user)
 
     expect(screen.getByText('Archive')).toBeTruthy()
+    await openCard(user, 'Omeprazole 20MG')
+
     expect(screen.getByRole('link', { name: /start again/i })).toBeTruthy()
     // A course that ran its course was not stopped, so there is no stop to undo.
     expect(screen.queryByRole('button', { name: /resume/i })).toBeNull()
@@ -84,11 +110,13 @@ describe('the Medicines screen', () => {
       durationUnit: 'days',
     })
     stopMedicine(id)
-    at('/medicines', <Medicines />, '/medicines')
+    tab()
     await openArchive(user)
 
     expect(screen.getByText('Archive')).toBeTruthy()
     expect(screen.getByText('Stopped')).toBeTruthy()
+    await openCard(user, 'Calcium with D3')
+
     expect(screen.getByRole('button', { name: /resume/i })).toBeTruthy()
     // The two ways out of a closed course are one choice, never both offered.
     expect(screen.queryByRole('link', { name: /start again/i })).toBeNull()
@@ -120,8 +148,9 @@ describe('the Medicines screen', () => {
         ],
       }),
     )
-    at('/medicines', <Medicines />, '/medicines')
+    tab()
     await openArchive(user)
+    await openCard(user, 'Amoxicillin 500MG')
 
     expect(screen.getByRole('link', { name: /start again/i })).toBeTruthy()
     expect(screen.queryByRole('button', { name: /resume/i })).toBeNull()
@@ -138,16 +167,21 @@ describe('the Medicines screen', () => {
       durationUnit: 'days',
     })
     stopMedicine(id)
-    at('/medicines', <Medicines />, '/medicines')
+    tab()
     await openArchive(user)
+    await openCard(user, 'Calcium with D3')
 
     // No dialog: a resume is additive, and stopping again is one press away.
     await user.click(screen.getByRole('button', { name: /resume/i }))
 
-    expect(screen.getByText('Running')).toBeTruthy()
-    expect(screen.queryByText('Archive')).toBeNull()
+    // The page it was pressed on is the course's own, so it stays put and the
+    // buttons change under the thumb.
     expect(screen.getByRole('button', { name: 'Stop' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: /resume/i })).toBeNull()
+
+    await user.click(screen.getByRole('link', { name: 'Back' }))
+    expect(screen.getByText('Running')).toBeTruthy()
+    expect(screen.queryByText('Archive')).toBeNull()
   })
 
   it('folds the Archive to a line with a count, and opens it on a press', async () => {
@@ -161,7 +195,7 @@ describe('the Medicines screen', () => {
       durationUnit: 'days',
     })
     stopMedicine(id)
-    at('/medicines', <Medicines />, '/medicines')
+    tab()
 
     // Shut, the count is the only thing saying there is anything in there.
     const fold = screen.getByRole('button', { name: /^Archive/ })
@@ -176,7 +210,7 @@ describe('the Medicines screen', () => {
 
   it('does not fold the sections that cannot grow without bound', () => {
     loadExamples()
-    at('/medicines', <Medicines />, '/medicines')
+    tab()
 
     expect(screen.getByText('Running')).toBeTruthy()
     expect(screen.getByText('Not started')).toBeTruthy()
@@ -187,7 +221,7 @@ describe('the Medicines screen', () => {
   it('filters every section by name, whatever the case it is typed in', async () => {
     const user = userEvent.setup()
     loadExamples()
-    at('/medicines', <Medicines />, '/medicines')
+    tab()
 
     await user.type(screen.getByLabelText('Find a medicine'), 'vitamin')
 
@@ -212,7 +246,7 @@ describe('the Medicines screen', () => {
     const user = userEvent.setup()
     loadExamples()
     stopMedicine(groupMedicines(getDatabase().medicines).find((g) => g.current.name === 'Calcium with D3')!.groupId)
-    at('/medicines', <Medicines />, '/medicines')
+    tab()
 
     expect(screen.queryByText('Calcium with D3')).toBeNull()
 
@@ -231,7 +265,7 @@ describe('the Medicines screen', () => {
     const user = userEvent.setup()
     loadExamples()
     stopMedicine(groupMedicines(getDatabase().medicines).find((g) => g.current.name === 'Calcium with D3')!.groupId)
-    at('/medicines', <Medicines />, '/medicines')
+    tab()
 
     await openArchive(user)
     await user.type(screen.getByLabelText('Find a medicine'), 'vitamin')
@@ -243,7 +277,7 @@ describe('the Medicines screen', () => {
   it('says when nothing matches, and offers the way back', async () => {
     const user = userEvent.setup()
     loadExamples()
-    at('/medicines', <Medicines />, '/medicines')
+    tab()
 
     await user.type(screen.getByLabelText('Find a medicine'), 'ibuprofen')
 
@@ -263,26 +297,26 @@ describe('the Medicines screen', () => {
       durationValue: 7,
       durationUnit: 'days',
     })
-    const one = at('/medicines', <Medicines />, '/medicines')
+    const one = tab()
     expect(screen.queryByLabelText('Find a medicine')).toBeNull()
     one.unmount()
 
     loadExamples()
-    at('/medicines', <Medicines />, '/medicines')
+    tab()
     expect(screen.getByLabelText('Find a medicine')).toBeTruthy()
   })
 
   it('forgets the search when the screen goes away', async () => {
     const user = userEvent.setup()
     loadExamples()
-    const first = at('/medicines', <Medicines />, '/medicines')
+    const first = tab()
 
     await user.type(screen.getByLabelText('Find a medicine'), 'vitamin')
     expect(screen.queryByText('Omeprazole 20MG')).toBeNull()
     first.unmount()
 
     // A lens, not a setting: nothing about it outlives the screen.
-    at('/medicines', <Medicines />, '/medicines')
+    tab()
     expect((screen.getByLabelText('Find a medicine') as HTMLInputElement).value).toBe('')
     expect(screen.getByText('Omeprazole 20MG')).toBeTruthy()
   })
@@ -298,16 +332,21 @@ describe('the Medicines screen', () => {
       durationUnit: 'days',
     })
     setDose(id, now, 'after-breakfast', 'taken')
-    at('/medicines', <Medicines />, '/medicines')
+    tab()
+    await openCard(user, 'Calcium with D3')
 
     await user.click(screen.getByRole('button', { name: /delete/i }))
     await user.click(screen.getByRole('button', { name: /^Delete$/ }))
-    // Deleting files the card in the Archive, which is shut.
-    await openArchive(user)
 
-    expect(screen.getByText('Deleted')).toBeTruthy()
+    // Still on the medicine's own page: a soft delete is reversible, so the way
+    // back is where the press was.
     expect(screen.getByRole('button', { name: /restore/i })).toBeTruthy()
     expect(Object.keys(getDatabase().log)).toHaveLength(1)
+
+    // And the card it came from is now filed in the Archive, which is shut.
+    await user.click(screen.getByRole('link', { name: 'Back' }))
+    await openArchive(user)
+    expect(screen.getByText('Deleted')).toBeTruthy()
   })
 
   it('deletes forever from the archive, history and all', async () => {
@@ -322,8 +361,9 @@ describe('the Medicines screen', () => {
     })
     setDose(id, shiftKey(now, -1), 'after-breakfast', 'taken')
     deleteMedicine(id)
-    at('/medicines', <Medicines />, '/medicines')
+    tab()
     await openArchive(user)
+    await openCard(user, 'Calcium with D3')
 
     expect(screen.getByRole('button', { name: /delete forever/i })).toBeTruthy()
     await user.click(screen.getByRole('button', { name: /delete forever/i }))
@@ -331,8 +371,9 @@ describe('the Medicines screen', () => {
     expect(screen.getByText(/cannot be undone/)).toBeTruthy()
     await user.click(screen.getByRole('button', { name: /^Delete forever$/ }))
 
-    // The card is gone from the archive — there is nothing left to restore —
-    // and the History screen has nothing left to read.
+    // Nothing is left to stand on, so the page hands back to the list — where
+    // there is nothing left to restore, and no record behind it either.
+    expect(screen.getByRole('heading', { name: 'Medicines' })).toBeTruthy()
     expect(screen.queryByText('Calcium with D3')).toBeNull()
     expect(getDatabase().log).toEqual({})
   })
@@ -340,8 +381,9 @@ describe('the Medicines screen', () => {
   it('sends Start again to the add form rather than creating a course', async () => {
     const user = userEvent.setup()
     const id = finishedCourse()
-    at('/medicines', <Medicines />, '/medicines')
+    tab()
     await openArchive(user)
+    await openCard(user, 'Amoxicillin 500MG')
 
     const link = screen.getByRole('link', { name: /start again/i })
     expect(link.getAttribute('href')).toBe(`/medicines/new?from=${id}`)
@@ -372,7 +414,7 @@ describe('copying the prescription', () => {
     const user = userEvent.setup()
     const writeText = pretendClipboard()
     loadExamples()
-    at('/medicines', <Medicines />, '/medicines')
+    tab()
 
     await user.click(copyButton())
 
@@ -389,7 +431,7 @@ describe('copying the prescription', () => {
     const user = userEvent.setup()
     pretendClipboard()
     loadExamples()
-    at('/medicines', <Medicines />, '/medicines')
+    tab()
 
     await user.click(copyButton())
 
@@ -401,7 +443,7 @@ describe('copying the prescription', () => {
     const user = userEvent.setup()
     pretendClipboard(true)
     loadExamples()
-    at('/medicines', <Medicines />, '/medicines')
+    tab()
 
     await user.click(copyButton())
 
@@ -414,7 +456,7 @@ describe('copying the prescription', () => {
     const user = userEvent.setup()
     const writeText = pretendClipboard()
     loadExamples()
-    at('/medicines', <Medicines />, '/medicines')
+    tab()
 
     await user.type(screen.getByLabelText('Find a medicine'), 'omeprazole')
     expect(screen.queryByText('Multivitamin')).toBeNull()
@@ -430,7 +472,7 @@ describe('copying the prescription', () => {
   it('leaves the press away when there is nothing live to hand anyone', async () => {
     const user = userEvent.setup()
     pretendClipboard()
-    const empty = at('/medicines', <Medicines />, '/medicines')
+    const empty = tab()
     expect(screen.queryByRole('button', { name: /^Copy$/ })).toBeNull()
     empty.unmount()
 
@@ -443,7 +485,7 @@ describe('copying the prescription', () => {
       durationValue: 7,
       durationUnit: 'days',
     })
-    at('/medicines', <Medicines />, '/medicines')
+    tab()
     await openArchive(user)
     expect(screen.getByText('Amoxicillin 500MG')).toBeTruthy()
     expect(screen.queryByRole('button', { name: /^Copy$/ })).toBeNull()
@@ -451,7 +493,7 @@ describe('copying the prescription', () => {
 })
 
 describe('the pocket on a medicine card', () => {
-  it('reads out the whole count rather than the fill it was reduced to', () => {
+  it('prints the whole count beside the fill it was reduced to', () => {
     const id = addMedicine({
       name: 'Calcium with D3',
       slots: ['after-breakfast'],
@@ -461,10 +503,14 @@ describe('the pocket on a medicine card', () => {
       durationUnit: 'days',
     })
     setDose(id, shiftKey(now, -2), 'after-breakfast', 'taken')
-    at('/medicines', <Medicines />, '/medicines')
+    tab()
 
     const card = screen.getByText('Calcium with D3').closest('article')!
-    expect(within(card).getByRole('img').getAttribute('aria-label')).toBe('1 taken, 1 missed, 1 due of 3')
+    // What is still to come is left off: the badge already says when it falls.
+    expect(within(card).getByText('1 taken').closest('p')!.textContent).toBe('1 taken · 1 missed of 3')
+    // The pocket is that count drawn, so it is left out of the reading rather
+    // than said a second time.
+    expect(within(card).queryByRole('img')).toBeNull()
   })
 
   it('leaves a course that has not started recessed rather than missed', () => {
@@ -476,7 +522,7 @@ describe('the pocket on a medicine card', () => {
       durationValue: 2,
       durationUnit: 'days',
     })
-    at('/medicines', <Medicines />, '/medicines')
+    tab()
 
     // Nothing has been asked of it yet, so nothing has been failed.
     const card = screen.getByText('Vitamin D3 60000').closest('article')!
@@ -752,7 +798,7 @@ describe('the medicine form, repeating on chosen days', () => {
   })
 })
 
-describe('the History screens', () => {
+describe('the record', () => {
   it('counts taken, skipped and missed against the whole course', () => {
     const id = addMedicine({
       name: 'Magnesium 250MG',
@@ -766,11 +812,30 @@ describe('the History screens', () => {
     setDose(id, shiftKey(now, -2), 'after-dinner', 'skipped')
     // The day before yesterday is left untouched, so it counts as missed.
 
-    at('/history', <History />, '/history')
-    expect(screen.getByText(/1 taken/)).toBeTruthy()
-    expect(screen.getByText(/1 skipped/)).toBeTruthy()
-    expect(screen.getByText(/1 missed/)).toBeTruthy()
-    expect(screen.getByText(/of 30/)).toBeTruthy()
+    // On the card, where the other tab used to print it as a bar and a tally.
+    tab()
+    const card = screen.getByText('Magnesium 250MG').closest('article')!
+    expect(within(card).getByText('1 taken').closest('p')!.textContent).toBe(
+      '1 taken · 1 skipped · 1 missed of 30',
+    )
+  })
+
+  it('leaves the count off a course with nothing answered yet', () => {
+    addMedicine({
+      name: 'Vitamin C 500MG',
+      slots: ['after-breakfast'],
+      repeatEveryDays: 1,
+      anchorDate: now,
+      durationValue: 30,
+      durationUnit: 'days',
+    })
+
+    tab()
+    // Nothing has happened to it, so "30 due of 30" is a line that says nothing
+    // the badge above it has not already said.
+    const card = screen.getByText('Vitamin C 500MG').closest('article')!
+    expect(within(card).queryByText(/of 30/)).toBeNull()
+    expect(within(card).getByLabelText('30 due of 30')).toBeTruthy()
   })
 
   it('lists every day of the course newest first', () => {
@@ -785,7 +850,7 @@ describe('the History screens', () => {
     setDose(id, now, 'after-dinner', 'taken')
 
     const groupId = groupMedicines(getDatabase().medicines)[0].groupId
-    at(`/history/${groupId}`, <MedicineHistory />, '/history/:groupId')
+    tab(`/medicines/${groupId}`)
 
     const days = screen.getAllByRole('listitem')
     expect(days).toHaveLength(3)
@@ -795,9 +860,28 @@ describe('the History screens', () => {
     expect(within(days[1]).getByText('Missed')).toBeTruthy()
     expect(within(days[2]).getByText('Missed')).toBeTruthy()
   })
+
+  it('offers the buttons for the course above its record', () => {
+    addMedicine({
+      name: 'Magnesium 250MG',
+      slots: ['after-dinner'],
+      repeatEveryDays: 1,
+      anchorDate: now,
+      durationValue: 30,
+      durationUnit: 'days',
+    })
+    const groupId = groupMedicines(getDatabase().medicines)[0].groupId
+    tab(`/medicines/${groupId}`)
+
+    // What the card used to carry, now on the page that holds the whole course.
+    expect(screen.getByRole('link', { name: 'Edit' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Finish' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Stop' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /delete/i })).toBeTruthy()
+  })
 })
 
-describe('the month grid in History', () => {
+describe('the month grid', () => {
   function magnesium(startOffset: number, days: number) {
     return addMedicine({
       name: 'Magnesium 250MG',
@@ -809,12 +893,14 @@ describe('the month grid in History', () => {
     })
   }
 
-  it('draws this month, with a cell for every day and the tally for what was answered', () => {
+  it('draws this month, with a cell for every day and the tally for what was answered', async () => {
+    const user = userEvent.setup()
     const id = magnesium(-2, 5)
     setDose(id, shiftKey(now, -2), 'after-dinner', 'taken')
     setDose(id, shiftKey(now, -1), 'after-dinner', 'skipped')
 
-    at('/history', <History />, '/history')
+    tab()
+    await openCalendar(user)
     const grid = screen.getByRole('region', { name: 'Calendar' })
     const monthDays = new Date(Number(now.slice(0, 4)), Number(now.slice(5, 7)), 0).getDate()
     expect(within(grid).getAllByRole('img').length + within(grid).getAllByRole('button').length).toBe(monthDays + 2)
@@ -826,7 +912,8 @@ describe('the month grid in History', () => {
     const user = userEvent.setup()
     const id = magnesium(-1, 5)
     setDose(id, shiftKey(now, -1), 'after-dinner', 'taken')
-    at('/history', <History />, '/history')
+    tab()
+    await openCalendar(user)
     const grid = screen.getByRole('region', { name: 'Calendar' })
 
     // Today and after are scheduled but only pending, so none of them is a button.
@@ -843,7 +930,8 @@ describe('the month grid in History', () => {
   it('stops at the first and last month a course touches', async () => {
     const user = userEvent.setup()
     magnesium(-40, 41)
-    at('/history', <History />, '/history')
+    tab()
+    await openCalendar(user)
     const grid = screen.getByRole('region', { name: 'Calendar' })
 
     const next = within(grid).getByRole('button', { name: 'Next month' }) as HTMLButtonElement
@@ -859,7 +947,7 @@ describe('the month grid in History', () => {
     const id = magnesium(-2, 3)
     setDose(id, now, 'after-dinner', 'taken')
     const groupId = groupMedicines(getDatabase().medicines)[0].groupId
-    at(`/history/${groupId}`, <MedicineHistory />, '/history/:groupId')
+    tab(`/medicines/${groupId}`)
 
     const grid = screen.getByRole('region', { name: 'Calendar' })
     expect(within(grid).getByText('1 of 3 taken')).toBeTruthy()
@@ -879,8 +967,11 @@ describe('the app shell', () => {
     await user.click(screen.getByRole('link', { name: 'Medicines' }))
     expect(screen.getByRole('heading', { name: 'Medicines' })).toBeTruthy()
 
-    await user.click(screen.getByRole('link', { name: 'History' }))
-    expect(screen.getByRole('heading', { name: 'History' })).toBeTruthy()
+    await user.click(screen.getByRole('link', { name: 'Settings' }))
+    expect(screen.getByRole('heading', { name: 'Settings' })).toBeTruthy()
+
+    // History was the fourth. It is not a tab and not a route.
+    expect(screen.queryByRole('link', { name: 'History' })).toBeNull()
   })
 })
 
@@ -916,7 +1007,7 @@ describe('the medicine form, counted in doses', () => {
       durationValue: 10,
       durationUnit: 'doses',
     })
-    at('/medicines', <Medicines />, '/medicines')
+    tab()
 
     const card = screen.getByText('Amoxicillin 500MG').closest('article')!
     expect(within(card).getByText('10 doses')).toBeTruthy()
@@ -936,10 +1027,16 @@ describe('finishing a course early', () => {
     })
   }
 
+  /** The list, then the course, which is where the two ways out are offered. */
+  async function openCourse(user: ReturnType<typeof userEvent.setup>) {
+    tab()
+    await openCard(user, 'Amoxicillin 500MG')
+  }
+
   it('asks what happens to today before it ends the course', async () => {
     const user = userEvent.setup()
     underWay()
-    at('/medicines', <Medicines />, '/medicines')
+    await openCourse(user)
 
     await user.click(screen.getByRole('button', { name: 'Finish' }))
 
@@ -951,7 +1048,7 @@ describe('finishing a course early', () => {
   it('leaves the course alone when the dialog is cancelled', async () => {
     const user = userEvent.setup()
     const id = underWay()
-    at('/medicines', <Medicines />, '/medicines')
+    await openCourse(user)
 
     await user.click(screen.getByRole('button', { name: 'Finish' }))
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
@@ -964,28 +1061,31 @@ describe('finishing a course early', () => {
   it('files it as done, with a way to start it again rather than resume it', async () => {
     const user = userEvent.setup()
     underWay()
-    at('/medicines', <Medicines />, '/medicines')
+    await openCourse(user)
 
     await user.click(screen.getByRole('button', { name: 'Finish' }))
     await user.click(screen.getByRole('button', { name: 'Finish it' }))
-    await openArchive(user)
 
+    expect(screen.getByRole('link', { name: /start again/i })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /resume/i })).toBeNull()
+
+    await user.click(screen.getByRole('link', { name: 'Back' }))
+    await openArchive(user)
     const card = screen.getByText('Amoxicillin 500MG').closest('article')!
     // Today's dose is still owed, and saying so is more use than a Done badge.
     expect(within(card).getByText('Due Today')).toBeTruthy()
     expect(within(card).queryByText('Stopped')).toBeNull()
-    expect(within(card).getByRole('link', { name: /start again/i })).toBeTruthy()
-    expect(within(card).queryByRole('button', { name: /resume/i })).toBeNull()
   })
 
   it('says Done once the last day it kept has gone by', async () => {
     const user = userEvent.setup()
     const id = underWay()
     setDose(id, now, 'after-breakfast', 'taken')
-    at('/medicines', <Medicines />, '/medicines')
+    await openCourse(user)
 
     await user.click(screen.getByRole('button', { name: 'Finish' }))
     await user.click(screen.getByRole('button', { name: 'Finish it' }))
+    await user.click(screen.getByRole('link', { name: 'Back' }))
     await openArchive(user)
 
     const card = screen.getByText('Amoxicillin 500MG').closest('article')!
@@ -995,14 +1095,16 @@ describe('finishing a course early', () => {
   it('keeps Stop, and keeps it meaning something else', async () => {
     const user = userEvent.setup()
     underWay()
-    at('/medicines', <Medicines />, '/medicines')
+    await openCourse(user)
 
     await user.click(screen.getByRole('button', { name: 'Stop' }))
     await user.click(screen.getByRole('button', { name: 'Stop it' }))
-    await openArchive(user)
 
+    expect(screen.getByRole('button', { name: /resume/i })).toBeTruthy()
+
+    await user.click(screen.getByRole('link', { name: 'Back' }))
+    await openArchive(user)
     const card = screen.getByText('Amoxicillin 500MG').closest('article')!
     expect(within(card).getByText('Stopped')).toBeTruthy()
-    expect(within(card).getByRole('button', { name: /resume/i })).toBeTruthy()
   })
 })

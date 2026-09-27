@@ -1,12 +1,17 @@
 import { NavLink, Outlet } from 'react-router-dom'
-import { CalendarCheck, History, Pill, Settings2 } from 'lucide-react'
+import { CalendarCheck, Pill, Settings2 } from 'lucide-react'
 import { useReminderSync } from '@/lib/reminder-sync'
 import { cn } from '@/lib/utils'
 
+/**
+ * Three, since the record moved onto the medicine it belongs to. History was a
+ * fourth tab listing the same courses as Medicines with a different read of the
+ * same number on each row, so a medicine had two homes and neither held all of
+ * it.
+ */
 const TABS = [
   { to: '/', label: 'Today', icon: CalendarCheck, end: true },
   { to: '/medicines', label: 'Medicines', icon: Pill, end: false },
-  { to: '/history', label: 'History', icon: History, end: false },
   { to: '/settings', label: 'Settings', icon: Settings2, end: false },
 ]
 

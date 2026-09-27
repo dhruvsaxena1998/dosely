@@ -83,3 +83,24 @@ export function dayOpens(t: DayTally | undefined): boolean {
   if (!t || t.scheduled === 0) return false
   return t.taken + t.skipped + t.missed > 0
 }
+
+/**
+ * What a stretch of days came to: taken over taken plus missed, counted the
+ * same way `dayFill` counts one day. Given the dates rather than a range so the
+ * grid can ask about the month it is showing and a folded heading can ask about
+ * the month it is standing in, with no chance of the two counting differently.
+ */
+export function monthTally(
+  days: Map<DateKey, DayTally>,
+  dates: readonly DateKey[],
+): { taken: number; counted: number } {
+  let taken = 0
+  let counted = 0
+  for (const date of dates) {
+    const t = days.get(date)
+    if (!t) continue
+    taken += t.taken
+    counted += t.taken + t.missed
+  }
+  return { taken, counted }
+}
