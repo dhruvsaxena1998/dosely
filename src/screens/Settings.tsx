@@ -73,11 +73,9 @@ const PAGES: Page[] = [
       return (
         <>
           <p className="mb-4 text-xs leading-relaxed text-muted-foreground">
-            Dosely has no server, so it cannot buzz you itself. It books the next three days of
-            reminders with ntfy, and tops them up every time you open the app — which means they
-            run out if you stay away for three days. On iPhone, tapping a reminder opens Safari
-            rather than this app, which cannot see your medicines — so open Dosely from your home
-            screen to tick the dose and set the next three.
+            Dosely has no server of its own, so a free app called ntfy does the buzzing. It books
+            three days ahead and tops that up each time you open Dosely, so reminders run out if
+            you stay away for three days.
           </p>
           <RemindersControl />
         </>
@@ -89,16 +87,9 @@ const PAGES: Page[] = [
     title: 'About',
     Summary: () => "What's new",
     Body: function AboutBody() {
-      return (
-        <>
-          <p className="mb-5 text-xs leading-relaxed text-muted-foreground">
-            What has changed lately, in the words of someone using the app rather than someone
-            building it. Which copy of Dosely is running is a different question, and it is
-            answered under Version on the settings screen.
-          </p>
-          <Changelog />
-        </>
-      )
+      // No preamble. A dated list of changes under a heading that says About
+      // does not need a paragraph explaining that it is a dated list of changes.
+      return <Changelog />
     },
   },
 ]
@@ -139,12 +130,10 @@ export function Settings() {
           ))}
         </div>
 
+        {/* No sentence. Three labelled positions are the explanation, and a
+            paragraph above them only delays reading the one you want. */}
         <section>
           <Heading>Feedback</Heading>
-          <p className="mb-3 text-xs leading-relaxed text-muted-foreground">
-            A tick answers back in the hand. iPhones cannot be asked whether that landed, so they
-            get a short click as well — turn it down to Haptic if the room is asleep.
-          </p>
           <Feedback />
         </section>
 
@@ -156,8 +145,7 @@ export function Settings() {
         <section>
           <Heading>Version</Heading>
           <p className="mb-3 text-xs leading-relaxed text-muted-foreground">
-            The app runs from a copy saved on this device, which it swaps for a newer one in the
-            background. Press this to fetch and switch straight away.
+            Updates arrive on their own. This fetches one now.
           </p>
           <AppUpdate />
         </section>
@@ -227,8 +215,7 @@ function Backup() {
   return (
     <>
       <p className="mb-3 text-xs leading-relaxed text-muted-foreground">
-        Everything lives in this browser only. Install the app to your home screen so the browser
-        does not clear it, and keep a copy somewhere safe.
+        Everything lives on this device. Nothing is ever sent anywhere.
       </p>
       <div className="flex gap-2">
         <Button size="sm" variant="outline" onClick={download}>
