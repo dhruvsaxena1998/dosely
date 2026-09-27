@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import { SettingsSection } from '@/screens/Settings'
+import { MemoryRouter } from 'react-router-dom'
+import { Settings } from '@/screens/Settings'
 import { Today } from '@/screens/Today'
 import { shiftKey, today } from '@/lib/dates'
 import { feedbackMode } from '@/lib/feedback'
@@ -29,13 +29,11 @@ vi.mock('web-haptics', async (importOriginal) => {
 
 const now = today()
 
-/** Feedback has a page of its own now, rather than a band on one long scroll. */
+/** Three positions is not worth a door, so it is on the settings screen itself. */
 function openFeedback() {
   return render(
-    <MemoryRouter initialEntries={['/settings/feedback']}>
-      <Routes>
-        <Route path="/settings/:section" element={<SettingsSection />} />
-      </Routes>
+    <MemoryRouter>
+      <Settings />
     </MemoryRouter>,
   )
 }

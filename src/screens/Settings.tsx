@@ -4,13 +4,12 @@ import { ChevronLeft, ChevronRight, Download, Upload } from 'lucide-react'
 import { Appearance as LightAndDark } from '@/components/Appearance'
 import { AppUpdate } from '@/components/AppUpdate'
 import { Changelog } from '@/components/Changelog'
-import { Feedback as FeedbackControl } from '@/components/Feedback'
+import { Feedback } from '@/components/Feedback'
 import { PageHeader } from '@/components/PageHeader'
 import { Reminders as RemindersControl } from '@/components/Reminders'
 import { ThemePicker } from '@/components/ThemePicker'
 import { Button } from '@/components/ui/button'
 import { formatDay, shiftKey, today, useToday } from '@/lib/dates'
-import { useFeedbackMode } from '@/lib/feedback'
 import { PALETTES } from '@/lib/palettes'
 import { useReminderSettings } from '@/lib/reminder-settings'
 import { REMINDER_HORIZON_DAYS } from '@/lib/reminders'
@@ -18,26 +17,27 @@ import { exportDatabase, importDatabase } from '@/lib/store'
 import { useMode, usePalette } from '@/lib/theme'
 
 /**
- * One area of the app's settings: the name it goes by, the line the index
- * prints under that name, and the page behind it.
+ * A part of the app's settings big enough to be worth leaving this screen for:
+ * the name it goes by, the line the index prints under that name, and the page
+ * behind it.
  *
  * A row and its page are the same entry rather than two lists that have to be
- * kept in step — the old screen stacked every control on one scroll precisely
- * because there was nowhere else to put them, and the first thing that breaks
- * when they move is a menu that still claims something is where it was.
+ * kept in step. Only three qualify — a page is the right shape for nine themes
+ * or for six ntfy fields, and the wrong shape for one toggle, which is why
+ * Feedback and Backup sit on the index itself rather than behind a door each.
  *
- * `Summary` is a component rather than a string because every one of these
- * answers is live: the palette, the mode, the feedback and the reminders are
- * all read off the stores they are set in.
+ * `Summary` is a component rather than a string because these answers are live:
+ * the palette, the mode and the reminders are read off the stores they are set
+ * in.
  */
-type Section = {
+type Page = {
   id: string
   title: string
   Summary: () => ReactNode
   Body: () => ReactNode
 }
 
-const SECTIONS: Section[] = [
+const PAGES: Page[] = [
   {
     id: 'appearance',
     title: 'Appearance',
@@ -56,25 +56,6 @@ const SECTIONS: Section[] = [
             <Heading>Light and dark</Heading>
             <LightAndDark />
           </div>
-        </>
-      )
-    },
-  },
-  {
-    id: 'feedback',
-    title: 'Feedback',
-    Summary: function FeedbackSummary() {
-      const mode = useFeedbackMode()
-      return mode === 'off' ? 'Off' : mode === 'haptic' ? 'Haptic' : 'Haptic and sound'
-    },
-    Body: function FeedbackBody() {
-      return (
-        <>
-          <p className="mb-3 text-xs leading-relaxed text-muted-foreground">
-            A tick answers back in the hand. iPhones cannot be asked whether that landed, so they
-            get a short click as well — turn it down to Haptic if the room is asleep.
-          </p>
-          <FeedbackControl />
         </>
       )
     },
@@ -104,23 +85,17 @@ const SECTIONS: Section[] = [
     },
   },
   {
-    id: 'backup',
-    title: 'Backup',
-    Summary: () => 'Export and import',
-    Body: Backup,
-  },
-  {
     id: 'about',
     title: 'About',
-    Summary: () => `Build ${__BUILD_ID__}`,
+    Summary: () => "What's new",
     Body: function AboutBody() {
       return (
         <>
-          <p className="mb-3 text-xs leading-relaxed text-muted-foreground">
-            The app runs from a copy saved on this device, which it swaps for a newer one in the
-            background. Press this to fetch and switch straight away.
+          <p className="mb-5 text-xs leading-relaxed text-muted-foreground">
+            What has changed lately, in the words of someone using the app rather than someone
+            building it. Which copy of Dosely is running is a different question, and it is
+            answered under Version on the settings screen.
           </p>
-          <AppUpdate />
           <Changelog />
         </>
       )
@@ -129,52 +104,80 @@ const SECTIONS: Section[] = [
 ]
 
 /**
- * The index. Five rows, each saying what it is currently set to.
+ * Three doors and two settings.
  *
- * It used to be every control the app has, open, on one scroll — six sections
- * and about two and a half thousand pixels of it once reminders were on, with
- * no way to learn what any of them was set to short of scrolling past it. The
- * settings did not get smaller; they stopped all being here at once, and what
- * is here now is the answers rather than the controls.
+ * It used to be every control the app has, open, on one scroll — about two and
+ * a half thousand pixels of it once reminders were on, with no way to learn
+ * what anything was set to short of scrolling past it. Then it was five doors,
+ * which traded that for a tap on the way to a single toggle.
+ *
+ * What is behind a door is what is too big to sit here: nine themes, six ntfy
+ * fields, and a list that grows with every release. Feedback is three
+ * positions and Backup is two buttons, and a screen you must leave to press one
+ * button is worse than the scroll it was meant to fix.
  */
 export function Settings() {
   return (
     <div>
       <PageHeader title="Settings" />
-      <div className="px-4 py-6">
+      <div className="space-y-8 px-4 py-6">
         <div className="surface divide-y overflow-hidden rounded-xl bg-card">
-          {SECTIONS.map((section) => (
+          {PAGES.map((page) => (
             <Link
-              key={section.id}
-              to={`/settings/${section.id}`}
+              key={page.id}
+              to={`/settings/${page.id}`}
               className="flex items-center gap-3 px-3.5 py-3 transition-colors active:bg-accent/40"
             >
               <div className="min-w-0 flex-1">
-                <h2 className="text-[15px] font-semibold tracking-[-0.01em]">{section.title}</h2>
+                <h2 className="text-[15px] font-semibold tracking-[-0.01em]">{page.title}</h2>
                 <p className="type-data mt-1 text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
-                  <section.Summary />
+                  <page.Summary />
                 </p>
               </div>
               <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
             </Link>
           ))}
         </div>
+
+        <section>
+          <Heading>Feedback</Heading>
+          <p className="mb-3 text-xs leading-relaxed text-muted-foreground">
+            A tick answers back in the hand. iPhones cannot be asked whether that landed, so they
+            get a short click as well — turn it down to Haptic if the room is asleep.
+          </p>
+          <Feedback />
+        </section>
+
+        <section>
+          <Heading>Backup</Heading>
+          <Backup />
+        </section>
+
+        <section>
+          <Heading>Version</Heading>
+          <p className="mb-3 text-xs leading-relaxed text-muted-foreground">
+            The app runs from a copy saved on this device, which it swaps for a newer one in the
+            background. Press this to fetch and switch straight away.
+          </p>
+          <AppUpdate />
+        </section>
       </div>
     </div>
   )
 }
 
 /**
- * One section, opened. Its own screen rather than a fold, because Reminders
- * alone is six fields and a fold that long is a scroll with a lid on it.
+ * One of the three, opened. Its own screen rather than a fold, because a fold
+ * over six ntfy fields is a scroll with a lid on it.
  */
 export function SettingsSection() {
   const { section: id } = useParams()
-  const section = SECTIONS.find((s) => s.id === id)
+  const page = PAGES.find((p) => p.id === id)
 
-  // A settings URL that names nothing. There is no page to draw and no error
-  // worth a screen, so it lands on the index the link came from.
-  if (!section) return <Navigate to="/settings" replace />
+  // A settings URL that names nothing, or one that names something that has
+  // since come back onto the index. There is no page to draw and no error worth
+  // a screen, so it lands where the setting actually lives.
+  if (!page) return <Navigate to="/settings" replace />
 
   return (
     <div className="screen mx-auto w-full max-w-md">
@@ -185,10 +188,10 @@ export function SettingsSection() {
               <ChevronLeft className="size-5" />
             </Link>
           </Button>
-          <h1 className="truncate text-base font-semibold tracking-[-0.01em]">{section.title}</h1>
+          <h1 className="truncate text-base font-semibold tracking-[-0.01em]">{page.title}</h1>
         </header>
         <div className="px-4 py-5 pb-[calc(env(safe-area-inset-bottom)+2rem)]">
-          <section.Body />
+          <page.Body />
         </div>
       </div>
     </div>
@@ -196,9 +199,10 @@ export function SettingsSection() {
 }
 
 /**
- * A page rather than a footer on the medicines list, where it was only
- * reachable once you had added a medicine — so the one person who most needed
- * Import, someone restoring a backup into an empty install, could not get to it.
+ * On the settings screen rather than behind a footer on the medicines list,
+ * where it was only reachable once you had added a medicine — so the one person
+ * who most needed Import, someone restoring a backup into an empty install,
+ * could not get to it.
  */
 function Backup() {
   const [message, setMessage] = useState<string | null>(null)

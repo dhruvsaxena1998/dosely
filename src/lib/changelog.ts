@@ -21,7 +21,7 @@ export const CHANGELOG: Release[] = [
     lines: [
       'Medicines and History are one tab. A card opens the medicine, where its record and its buttons now live together.',
       'The month of pockets folds into the top of the Medicines list, with the month\u2019s number showing while it is shut.',
-      'Settings is five rows, each saying what it is set to and opening a page of its own.',
+      'Settings fits on one screen. Appearance, Reminders and About open a page of their own; Feedback and Backup stayed put.',
     ],
   },
   {

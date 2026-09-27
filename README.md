@@ -77,19 +77,24 @@ Losing the action row is the other half of it. The list was a stack of cards
 each ending in four buttons you were not going to press; without them a card is
 a name, a pocket and a count, and twice as many fit on the screen.
 
-### Settings, five answers deep
+### Settings on one screen
 
 Settings was every control the app has, open, on one scroll: about two and a half
 thousand pixels of it once reminders were on, and no way to learn what any
 setting was currently set to short of scrolling past it.
 
-It is five rows now — Appearance, Feedback, Reminders, Backup, About — each
-printing its own current value, each opening a page of its own. The settings did
-not get smaller; they stopped all being on screen at once, and what is on screen
-now is the answers rather than the controls. Reminders in particular is six
-fields, which is what earned it a page rather than a fold.
+Three things are behind a door now, each printing its current value on the row
+that opens it: **Appearance** (nine themes, and light and dark), **Reminders**
+(six ntfy fields), and **About** (a list that grows with every release). Those
+are the three too big to sit on one screen with anything else.
 
-Each row and its page are one entry in a single table, so a menu that claims
+Everything else stayed where it was. **Feedback** is three positions and
+**Backup** is two buttons, and a screen you have to leave in order to press one
+button is worse than the scroll it was meant to fix. Checking for an update and
+reading which build is running sit at the foot of the same screen, because that
+is a thing you do in passing rather than a place you go.
+
+Each door and its page are one entry in a single table, so a row that claims
 something lives somewhere cannot drift from where it actually lives.
 
 ### Handing the list to someone
