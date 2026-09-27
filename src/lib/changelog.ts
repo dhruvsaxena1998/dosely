@@ -17,6 +17,14 @@ export type Release = {
  */
 export const CHANGELOG: Release[] = [
   {
+    on: '2026-09-27',
+    lines: [
+      'Medicines and History are one tab. A card opens the medicine, where its record and its buttons now live together.',
+      'The month of pockets folds into the top of the Medicines list, with the month\u2019s number showing while it is shut.',
+      'Settings is five rows, each saying what it is set to and opening a page of its own.',
+    ],
+  },
+  {
     on: '2026-09-02',
     lines: [
       'Take a whole slot with one press on its heading.',

@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ChevronLeft } from 'lucide-react'
 import { AdherenceBar } from '@/components/AdherenceBar'
+import { CourseActions } from '@/components/CourseActions'
 import { DaySheet } from '@/components/DaySheet'
 import { MetaLine } from '@/components/MetaLine'
 import { MonthGrid } from '@/components/MonthGrid'
@@ -16,10 +17,20 @@ import { slotLabel, type SlotId } from '@/lib/slots'
 import { useDatabase } from '@/lib/store'
 import { cn } from '@/lib/utils'
 
-export function MedicineHistory() {
+/**
+ * One medicine, whole: what it is, what to do with it, and what became of every
+ * dose it ever scheduled.
+ *
+ * The buttons sit above the record rather than below it. You arrive here from a
+ * card you used to be able to stop from, so the thing you came to do is at the
+ * top; the record reads downward from it, and a course is never stopped without
+ * how it has been going being on the same screen.
+ */
+export function Medicine() {
   const { groupId } = useParams()
   const db = useDatabase()
   const now = useToday()
+  const navigate = useNavigate()
 
   const group = useMemo(
     () => groupMedicines(db.medicines).find((g) => g.groupId === groupId),
@@ -57,8 +68,8 @@ export function MedicineHistory() {
       <div className="screen mx-auto w-full max-w-md">
         <div className="px-4 py-10 text-center text-sm text-muted-foreground">
           That medicine is gone.{' '}
-          <Link to="/history" className="underline">
-            Back to history
+          <Link to="/medicines" className="underline">
+            Back to medicines
           </Link>
         </div>
       </div>
@@ -73,7 +84,7 @@ export function MedicineHistory() {
       <div className="flex-1 overflow-y-auto overscroll-contain">
         <header className="app-header flex items-center gap-1 border-b bg-background px-2 py-3">
           <Button asChild variant="ghost" size="icon" aria-label="Back">
-            <Link to="/history">
+            <Link to="/medicines">
               <ChevronLeft className="size-5" />
             </Link>
           </Button>
@@ -89,6 +100,20 @@ export function MedicineHistory() {
             ]}
           />
           <AdherenceBar tally={tally} />
+
+          {/* Ruled off top and bottom, so the row reads as a set of presses
+              rather than as the first line of the record below it. */}
+          <div className="mt-3.5 border-y py-1.5">
+            <CourseActions
+              group={group}
+              db={db}
+              now={now}
+              // Nothing is left to show: the medicine and every dose of it are
+              // gone, and this screen is named after a group id that no longer
+              // resolves.
+              onPurged={() => navigate('/medicines', { replace: true })}
+            />
+          </div>
 
           <div className="mt-4 grid grid-cols-4 gap-2">
             <Stat label="Taken" value={tally.taken} className="text-taken-foreground" />

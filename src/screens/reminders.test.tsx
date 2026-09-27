@@ -1,23 +1,26 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter } from 'react-router-dom'
-import { Settings } from '@/screens/Settings'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { SettingsSection } from '@/screens/Settings'
 import { shiftKey, today } from '@/lib/dates'
 import { reminderSettings } from '@/lib/reminder-settings'
 import { addMedicine, getDatabase, importDatabase } from '@/lib/store'
 
 const now = today()
 
+/** Reminders is six fields, which is what earned it a page of its own. */
 function open() {
   return render(
-    <MemoryRouter>
-      <Settings />
+    <MemoryRouter initialEntries={['/settings/reminders']}>
+      <Routes>
+        <Route path="/settings/:section" element={<SettingsSection />} />
+      </Routes>
     </MemoryRouter>,
   )
 }
 
-/** Scoped to its own group: Feedback has an Off of its own on the same screen. */
+/** Scoped to its own group: "What it says" has an On-shaped pair of its own. */
 function group(name: string) {
   return within(screen.getByRole('radiogroup', { name }))
 }

@@ -1,12 +1,11 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AppShell } from '@/components/AppShell'
-import { History } from '@/screens/History'
 import { Install } from '@/screens/Install'
+import { Medicine } from '@/screens/Medicine'
 import { MedicineForm } from '@/screens/MedicineForm'
-import { MedicineHistory } from '@/screens/MedicineHistory'
 import { Medicines } from '@/screens/Medicines'
 import { ReminderLanding } from '@/screens/Reminder'
-import { Settings } from '@/screens/Settings'
+import { Settings, SettingsSection } from '@/screens/Settings'
 import { Today } from '@/screens/Today'
 import { gateEnforced, useInstallState } from '@/lib/install'
 import { REMINDER_PATH } from '@/lib/reminders'
@@ -30,15 +29,22 @@ export default function App() {
         <Route element={<AppShell />}>
           <Route index element={<Today />} />
           <Route path="medicines" element={<Medicines />} />
-          <Route path="history" element={<History />} />
           <Route path="settings" element={<Settings />} />
           {/* Arriving here inside the app means the tap already landed where it
               was meant to, so there is nothing to sign-post. */}
           <Route path="reminder" element={<Navigate to="/" replace />} />
+          {/* A path this app has never had, or one it used to have. History was
+              its own tab until the medicines list grew the record; a home screen
+              icon or a bookmark still pointing at it lands on Today rather than
+              on a blank frame with the tab bar under it. */}
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
+        {/* Off the shell: each one is a single job you finish and back out of,
+            and the tab bar under it would be an invitation to leave halfway. */}
         <Route path="medicines/new" element={<MedicineForm />} />
+        <Route path="medicines/:groupId" element={<Medicine />} />
         <Route path="medicines/:groupId/edit" element={<MedicineForm />} />
-        <Route path="history/:groupId" element={<MedicineHistory />} />
+        <Route path="settings/:section" element={<SettingsSection />} />
       </Routes>
     </BrowserRouter>
   )

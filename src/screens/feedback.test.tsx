@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter } from 'react-router-dom'
-import { Settings } from '@/screens/Settings'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { SettingsSection } from '@/screens/Settings'
 import { Today } from '@/screens/Today'
 import { shiftKey, today } from '@/lib/dates'
 import { feedbackMode } from '@/lib/feedback'
@@ -28,6 +28,17 @@ vi.mock('web-haptics', async (importOriginal) => {
 })
 
 const now = today()
+
+/** Feedback has a page of its own now, rather than a band on one long scroll. */
+function openFeedback() {
+  return render(
+    <MemoryRouter initialEntries={['/settings/feedback']}>
+      <Routes>
+        <Route path="/settings/:section" element={<SettingsSection />} />
+      </Routes>
+    </MemoryRouter>,
+  )
+}
 
 function renderToday() {
   return render(
@@ -57,14 +68,9 @@ beforeEach(() => {
 
 describe('the feedback setting', () => {
   it('offers three positions and shows which one is on', () => {
-    render(
-      <MemoryRouter>
-        <Settings />
-      </MemoryRouter>,
-    )
+    openFeedback()
 
     const group = screen.getByRole('radiogroup', { name: 'Feedback' })
-    // Scoped: the Reminders section has an Off of its own on this screen.
     expect(within(group).getByRole('radio', { name: 'Off' })).toBeTruthy()
     expect(screen.getByRole('radio', { name: 'Haptic' })).toBeTruthy()
     expect(screen.getByRole('radio', { name: 'And sound' })).toBeTruthy()
@@ -74,11 +80,7 @@ describe('the feedback setting', () => {
 
   it('changes the setting, and answers as it is chosen', async () => {
     const user = userEvent.setup()
-    render(
-      <MemoryRouter>
-        <Settings />
-      </MemoryRouter>,
-    )
+    openFeedback()
 
     await user.click(screen.getByRole('radio', { name: 'Haptic' }))
 
@@ -89,11 +91,7 @@ describe('the feedback setting', () => {
 
   it('goes silent when it is turned off', async () => {
     const user = userEvent.setup()
-    render(
-      <MemoryRouter>
-        <Settings />
-      </MemoryRouter>,
-    )
+    openFeedback()
 
     const group = screen.getByRole('radiogroup', { name: 'Feedback' })
     await user.click(within(group).getByRole('radio', { name: 'Off' }))

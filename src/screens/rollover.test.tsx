@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import { History } from '@/screens/History'
 import { Medicines } from '@/screens/Medicines'
 import { Today } from '@/screens/Today'
 import { BACKFILL_DAYS, formatWithYear, shiftKey } from '@/lib/dates'
@@ -230,7 +229,7 @@ describe('the day rolling over under the other screens', () => {
 
   it('counts a dose that was never ticked as missed once the day turns', () => {
     daily('Metformin 500MG', MONDAY)
-    at('/history', <History />, '/history')
+    at('/medicines', <Medicines />, '/medicines')
     expect(screen.queryByText(/missed/)).toBeNull()
 
     timePasses(6)

@@ -1,97 +1,35 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Check, ChevronDown, Copy, Pill, Plus, RotateCcw, Search, SearchX, Trash2, Undo2 } from 'lucide-react'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
+import { Check, ChevronDown, ChevronRight, Copy, Pill, Plus, Search, SearchX } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DaySheet } from '@/components/DaySheet'
 import { EmptyState } from '@/components/EmptyState'
 import { MetaLine } from '@/components/MetaLine'
+import { MonthGrid } from '@/components/MonthGrid'
 import { PageHeader } from '@/components/PageHeader'
-import type { CourseAction } from '@/lib/actions'
-import { courseActions } from '@/lib/actions'
-import { courseFill } from '@/lib/calendar'
+import { courseFill, monthCells, monthOf, monthTally } from '@/lib/calendar'
 import { copyText } from '@/lib/clipboard'
-import { relativeDayLabel, useToday } from '@/lib/dates'
+import type { DateKey } from '@/lib/dates'
+import { maxKey, minKey, relativeDayLabel, shiftKey, useToday } from '@/lib/dates'
 import { describeGroupSpan, describeLength, describeRepeat, describeTally } from '@/lib/describe'
 import { loadExamples } from '@/lib/examples'
 import { FILL_POCKET } from '@/lib/outcome'
 import { prescriptionText } from '@/lib/prescription'
-import type { MedicineGroup } from '@/lib/schedule'
-import { adherenceFor, courseStatus, groupMedicines, nextOpenDate } from '@/lib/schedule'
-import { slotLabel, sortSlots } from '@/lib/slots'
+import type { Adherence, MedicineGroup } from '@/lib/schedule'
 import {
-  deleteMedicine,
-  finishMedicine,
-  purgeMedicine,
-  restoreMedicine,
-  resumeMedicine,
-  stopMedicine,
-  useDatabase,
-} from '@/lib/store'
+  adherenceFor,
+  courseStatus,
+  dayTallies,
+  dosesOnFor,
+  groupMedicines,
+  groupSpan,
+  nextOpenDate,
+} from '@/lib/schedule'
+import { slotLabel, sortSlots } from '@/lib/slots'
+import { useDatabase } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import type { Database } from '@/types'
-
-type ConfirmKind = 'finish' | 'stop' | 'delete' | 'purge'
-
-type Confirm = { kind: ConfirmKind; group: MedicineGroup } | null
-
-/**
- * What each confirmation asks, and what it runs when the answer is yes.
- *
- * One row per press rather than a ternary per line. The four differ in their
- * title, their sentence, their button and the call behind it, and four separate
- * chains answering the same question are four chances to pair the wrong ones.
- */
-const CONFIRMS: Record<
-  ConfirmKind,
-  {
-    title: string
-    describe: (name: string) => string
-    action: string
-    destructive?: boolean
-    run: (groupId: string) => void
-  }
-> = {
-  // The difference from Stop is one day, so the sentence is about that day.
-  finish: {
-    title: 'Finish this course?',
-    describe: (name) =>
-      `${name} ends with today. Today's doses are still yours to tick, and the days after it drop off. It counts as completed rather than cut short.`,
-    action: 'Finish it',
-    run: finishMedicine,
-  },
-  stop: {
-    title: 'Stop this course?',
-    describe: (name) =>
-      `${name} stops appearing from today. Anything you already ticked stays in your history.`,
-    action: 'Stop it',
-    run: stopMedicine,
-  },
-  delete: {
-    title: 'Delete this medicine?',
-    describe: (name) =>
-      `${name} disappears from Today and Medicines. Its history is kept, and you can restore it from the archive.`,
-    action: 'Delete',
-    run: deleteMedicine,
-  },
-  purge: {
-    title: 'Delete forever?',
-    describe: (name) =>
-      `${name} and its whole history — every tick, skip and miss — are removed for good. This cannot be undone.`,
-    action: 'Delete forever',
-    destructive: true,
-    run: purgeMedicine,
-  },
-}
 
 /**
  * How many medicines it takes before a search field earns the space it costs.
@@ -108,11 +46,19 @@ const SEARCH_FROM = 6
 const RUNNING = 'Running'
 const NOT_STARTED = 'Not started'
 
+/**
+ * The register and the record, on one screen.
+ *
+ * They were two tabs listing the same courses: one printed a course's adherence
+ * as a pocket and offered the buttons, the other printed the same number as a
+ * bar and offered the calendar. A medicine appeared twice and neither copy was
+ * the whole of it. Here it appears once — the list says what you are on and how
+ * each course is going, and a card is the door to that course's own page, which
+ * holds its record and its buttons together.
+ */
 export function Medicines() {
   const db = useDatabase()
   const now = useToday()
-  const [confirm, setConfirm] = useState<Confirm>(null)
-  const asked = confirm ? CONFIRMS[confirm.kind] : undefined
   // A lens on the list rather than a setting on it, so both live in view state
   // and both are gone by the time you come back to the screen.
   const [query, setQuery] = useState('')
@@ -198,6 +144,8 @@ export function Medicines() {
         </EmptyState>
       ) : (
         <div className="space-y-5 px-4 py-6">
+          <Calendar db={db} groups={groups} now={now} />
+
           {total >= SEARCH_FROM ? (
             <div className="relative">
               <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -216,7 +164,7 @@ export function Medicines() {
             <EmptyState
               icon={SearchX}
               title="Nothing found"
-              body={`No medicine here is named like \u201c${query.trim()}\u201d.`}
+              body={`No medicine here is named like “${query.trim()}”.`}
             >
               <Button variant="outline" size="sm" onClick={() => setQuery('')}>
                 Clear the search
@@ -224,8 +172,8 @@ export function Medicines() {
             </EmptyState>
           ) : (
             <div className="space-y-8">
-              <Section title={RUNNING} groups={active} db={db} now={now} onConfirm={setConfirm} />
-              <Section title={NOT_STARTED} groups={upcoming} db={db} now={now} onConfirm={setConfirm} />
+              <Section title={RUNNING} groups={active} db={db} now={now} />
+              <Section title={NOT_STARTED} groups={upcoming} db={db} now={now} />
               {/* The one section that grows for as long as the app is used, and
                   the only one that folds. Running and Not started are bounded by
                   how many courses you are actually on.
@@ -238,38 +186,99 @@ export function Medicines() {
                 groups={archived}
                 db={db}
                 now={now}
-                onConfirm={setConfirm}
                 fold={{ open: archiveOpen || Boolean(needle), onToggle: () => setArchiveOpen(!archiveOpen) }}
               />
             </div>
           )}
         </div>
       )}
-
-      <AlertDialog open={confirm !== null} onOpenChange={(open) => !open && setConfirm(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{asked?.title}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {confirm && asked ? asked.describe(confirm.group.current.name) : null}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              variant={asked?.destructive ? 'destructive' : 'default'}
-              onClick={() => {
-                if (!confirm || !asked) return
-                asked.run(confirm.group.groupId)
-                setConfirm(null)
-              }}
-            >
-              {asked?.action}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
+  )
+}
+
+/**
+ * The month of pockets, folded shut with its number showing.
+ *
+ * It used to be the first thing on a tab of its own, which made a calendar the
+ * answer to a screen nobody opened to ask about a calendar. The list is what
+ * this screen is for, so the grid waits behind one press — and the press keeps
+ * the one number the grid was read for, so the common question is answered
+ * without opening anything.
+ */
+function Calendar({ db, groups, now }: { db: Database; groups: MedicineGroup[]; now: DateKey }) {
+  const [open, setOpen] = useState(false)
+  const [picked, setPicked] = useState<DateKey>()
+
+  // Deleted courses included. A day you took something is still a day you took
+  // it, and a course that has not started has nothing to say about any day yet.
+  const counted = useMemo(
+    () => groups.filter((g) => courseStatus(db, g, now) !== 'upcoming'),
+    [db, groups, now],
+  )
+
+  const bounds = useMemo(() => {
+    let first = now
+    let last = now
+    for (const g of counted) {
+      const span = groupSpan(db, g, now)
+      first = minKey(first, span.start)
+      last = maxKey(last, shiftKey(span.end, -1))
+    }
+    return { first, last }
+  }, [db, counted, now])
+
+  const days = useMemo(
+    () => dayTallies(db, counted, bounds.first, shiftKey(bounds.last, 1), now),
+    [db, counted, bounds, now],
+  )
+  const thisMonth = useMemo(() => monthTally(days, monthCells(monthOf(now)).days), [days, now])
+  const pickedDoses = useMemo(
+    () => (picked ? dosesOnFor(db, counted, picked, now) : []),
+    [db, counted, picked, now],
+  )
+
+  // Nothing has run yet, so a calendar would be a grid of empty days under a
+  // heading promising a record.
+  if (counted.length === 0) return null
+
+  return (
+    <section>
+      <h2>
+        <button
+          type="button"
+          onClick={() => setOpen(!open)}
+          aria-expanded={open}
+          aria-label={
+            thisMonth.counted > 0
+              ? `This month, ${thisMonth.taken} of ${thisMonth.counted} taken`
+              : 'This month, nothing answered yet'
+          }
+          className="flex w-full items-center gap-3 rounded-lg py-0.5 text-left transition-opacity active:opacity-60"
+        >
+          <span className="type-eyebrow text-muted-foreground">This month</span>
+          <span className="h-px flex-1 bg-border" />
+          {/* Nothing has been answered this month, so there is no score to
+              print and "0/0" would read as a bad one. */}
+          {thisMonth.counted > 0 ? (
+            <span className="type-data text-[11px] text-muted-foreground">
+              {thisMonth.taken}/{thisMonth.counted}
+            </span>
+          ) : null}
+          <ChevronDown
+            className={cn(
+              'size-3.5 shrink-0 text-muted-foreground transition-transform',
+              open && 'rotate-180',
+            )}
+          />
+        </button>
+      </h2>
+      {open ? (
+        <div className="mt-2.5">
+          <MonthGrid days={days} first={bounds.first} last={bounds.last} today={now} onPick={setPicked} />
+        </div>
+      ) : null}
+      <DaySheet date={picked} doses={pickedDoses} onClose={() => setPicked(undefined)} />
+    </section>
   )
 }
 
@@ -320,14 +329,12 @@ function Section({
   groups,
   db,
   now,
-  onConfirm,
   fold,
 }: {
   title: string
   groups: MedicineGroup[]
   db: Database
-  now: string
-  onConfirm: (c: Confirm) => void
+  now: DateKey
   /** Absent on a section that does not fold, which is most of them. */
   fold?: Fold
 }) {
@@ -342,7 +349,7 @@ function Section({
       {!fold || fold.open ? (
         <div className="space-y-2">
           {groups.map((g) => (
-            <MedicineCard key={g.groupId} group={g} db={db} now={now} onConfirm={onConfirm} />
+            <MedicineCard key={g.groupId} group={g} db={db} now={now} />
           ))}
         </div>
       ) : null}
@@ -350,17 +357,30 @@ function Section({
   )
 }
 
-function MedicineCard({
-  group,
-  db,
-  now,
-  onConfirm,
-}: {
-  group: MedicineGroup
-  db: Database
-  now: string
-  onConfirm: (c: Confirm) => void
-}) {
+/** Whether a course has anything behind it worth printing a count of. */
+function hasRecord(t: Adherence): boolean {
+  return t.taken + t.skipped + t.missed > 0
+}
+
+/**
+ * What became of the course so far. The taken count wears the theme's confident
+ * colour, which is the same colour the pocket beside it is filled with, so the
+ * number and the fill are visibly the same fact.
+ */
+function Tally({ tally }: { tally: Adherence }) {
+  return (
+    <p className="type-data mt-2 text-[11px] text-muted-foreground">
+      <span className={tally.taken > 0 ? 'font-medium text-taken-foreground' : undefined}>
+        {tally.taken} taken
+      </span>
+      {tally.skipped > 0 ? <span> · {tally.skipped} skipped</span> : null}
+      {tally.missed > 0 ? <span> · {tally.missed} missed</span> : null}
+      <span> of {tally.total}</span>
+    </p>
+  )
+}
+
+function MedicineCard({ group, db, now }: { group: MedicineGroup; db: Database; now: DateKey }) {
   const m = group.current
   const status = courseStatus(db, group, now)
   const deleted = Boolean(m.deletedAt)
@@ -369,19 +389,27 @@ function MedicineCard({
   // one entered as ten years is thousands of them. Typing in the search field
   // re-renders every card on the screen, and none of them changed.
   const tally = useMemo(() => adherenceFor(db, group, now), [db, group, now])
+  const counted = hasRecord(tally)
 
   return (
-    <article className="surface rounded-xl bg-card p-3.5">
-      <div className="flex gap-2.5">
+    <article>
+      <Link
+        to={`/medicines/${group.groupId}`}
+        className="surface flex gap-2.5 rounded-xl bg-card p-3.5 transition-colors active:bg-accent/40"
+      >
         {/* The card's one pocket, and the only thing on this screen printed in
             the theme's confident colour. How the course is going, in the same
             four steps the month grid uses: filled where it has been taken,
             hatched where it is being missed, recessed where nothing has been
             answered yet. Bauhaus cuts it round, Cyberpunk lights it, and
-            Monochrome still tells the four apart. */}
+            Monochrome still tells the four apart.
+
+            Where the count is printed below in words, the pocket is that count
+            drawn, so it is left out of the reading rather than said twice. */}
         <span
-          role="img"
-          aria-label={describeTally(tally)}
+          role={counted ? undefined : 'img'}
+          aria-hidden={counted ? true : undefined}
+          aria-label={counted ? undefined : describeTally(tally)}
           className={cn('pocket mt-px size-6 shrink-0', FILL_POCKET[courseFill(tally)])}
         />
         <div className="min-w-0 flex-1">
@@ -395,6 +423,10 @@ function MedicineCard({
             >
               {deleted ? 'Deleted' : status === 'stopped' ? 'Stopped' : due ? `Due ${relativeDayLabel(due, now)}` : 'Done'}
             </span>
+            {/* On the title's line rather than down the side of the card: a
+                column of its own took a chevron's width off every line below
+                it, which is where the dates are and where they wrapped. */}
+            <ChevronRight className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
           </div>
 
           <MetaLine
@@ -414,15 +446,15 @@ function MedicineCard({
             ))}
           </div>
 
+          {/* The line the other tab printed under its bar, carried over whole.
+              What is left to come is left out of it: the badge above already
+              says when the next one falls, and a course is read by how much of
+              it has been kept rather than by how much of it is left. */}
+          {counted ? <Tally tally={tally} /> : null}
+
           {m.note ? <p className="mt-2.5 text-xs leading-relaxed text-muted-foreground">{m.note}</p> : null}
         </div>
-      </div>
-
-      <div className="-mx-1 mt-3 flex flex-wrap items-center gap-1 border-t pt-2">
-        {courseActions(db, group, now).map((action) => (
-          <Action key={action} action={action} group={group} onConfirm={onConfirm} />
-        ))}
-      </div>
+      </Link>
     </article>
   )
 }
@@ -470,98 +502,4 @@ function CopyPrescription({ text }: { text: string }) {
       </span>
     </>
   )
-}
-
-/**
- * One action, drawn. Which actions a card offers is `courseActions`; this only
- * knows how each one looks and what it calls, so the two cannot disagree about
- * when a button should be there.
- */
-function Action({
-  action,
-  group,
-  onConfirm,
-}: {
-  action: CourseAction
-  group: MedicineGroup
-  onConfirm: (c: Confirm) => void
-}) {
-  switch (action) {
-    case 'edit':
-      return (
-        <Button asChild size="sm" variant="ghost">
-          <Link to={`/medicines/${group.groupId}/edit`}>Edit</Link>
-        </Button>
-      )
-    // Two ways out of a course under way, side by side, because which one it was
-    // is the difference between a record that reads as completed and one that
-    // reads as abandoned.
-    case 'finish':
-      return (
-        <Button size="sm" variant="ghost" onClick={() => onConfirm({ kind: 'finish', group })}>
-          Finish
-        </Button>
-      )
-    case 'stop':
-      return (
-        <Button size="sm" variant="ghost" onClick={() => onConfirm({ kind: 'stop', group })}>
-          Stop
-        </Button>
-      )
-    // No dialog. A resume adds days back rather than taking any away, and
-    // stopping again is right there — the two things a confirmation is for.
-    case 'resume':
-      return (
-        <Button size="sm" variant="ghost" onClick={() => resumeMedicine(group.groupId)}>
-          <Undo2 className="size-3.5" />
-          Resume
-        </Button>
-      )
-    // Navigation, not a mutation. A repeat prescription is usually a different
-    // length and rarely starts on the day you happened to tap, so it opens the
-    // add form carrying this course's details rather than guessing at both.
-    case 'restart':
-      return (
-        <Button asChild size="sm" variant="ghost">
-          <Link to={`/medicines/new?from=${group.groupId}`}>
-            <RotateCcw className="size-3.5" />
-            Start again
-          </Link>
-        </Button>
-      )
-    case 'restore':
-      return (
-        <Button size="sm" variant="ghost" onClick={() => restoreMedicine(group.groupId)}>
-          <RotateCcw className="size-3.5" />
-          Restore
-        </Button>
-      )
-    case 'delete':
-      return (
-        <Button
-          size="sm"
-          variant="ghost"
-          className="ml-auto text-muted-foreground"
-          onClick={() => onConfirm({ kind: 'delete', group })}
-        >
-          <Trash2 className="size-3.5" />
-          Delete
-        </Button>
-      )
-    // The delete behind the delete, offered once the medicine is already in the
-    // archive. Takes the history with it, so it asks twice — here and in the
-    // dialog — and lands in destructive colours both times.
-    case 'purge':
-      return (
-        <Button
-          size="sm"
-          variant="ghost"
-          className="ml-auto text-destructive"
-          onClick={() => onConfirm({ kind: 'purge', group })}
-        >
-          <Trash2 className="size-3.5" />
-          Delete forever
-        </Button>
-      )
-  }
 }

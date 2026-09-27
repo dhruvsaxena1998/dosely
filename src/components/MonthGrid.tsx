@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { clampMonth, dayFill, dayOpens, formatMonth, monthCells, monthOf, shiftMonth } from '@/lib/calendar'
+import { clampMonth, dayFill, dayOpens, formatMonth, monthCells, monthOf, monthTally, shiftMonth } from '@/lib/calendar'
 import type { DateKey } from '@/lib/dates'
 import { formatDay } from '@/lib/dates'
 import { describeTally } from '@/lib/describe'
@@ -36,17 +36,7 @@ export function MonthGrid({
   const [month, setMonth] = useState(() => clampMonth(monthOf(today), firstMonth, lastMonth))
   const { lead, days: dates } = useMemo(() => monthCells(month), [month])
 
-  const tally = useMemo(() => {
-    let taken = 0
-    let counted = 0
-    for (const date of dates) {
-      const t = days.get(date)
-      if (!t) continue
-      taken += t.taken
-      counted += t.taken + t.missed
-    }
-    return { taken, counted }
-  }, [dates, days])
+  const tally = useMemo(() => monthTally(days, dates), [dates, days])
 
   return (
     <section aria-label="Calendar" className="surface rounded-xl border bg-card p-3.5">

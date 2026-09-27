@@ -19,7 +19,7 @@ which rewrites every path to `index.html` so deep links work.
 
 Install it to your home screen. That is not decoration: Safari clears localStorage
 after seven days without a visit, and an installed web app is exempt from that cap.
-There is also an Export button on the Settings screen.
+There is also an Export button under Settings → Backup.
 
 ## The look
 
@@ -36,15 +36,18 @@ over a course you are already living with. Red is reserved for delete.
 
 ### A month of pockets
 
-History draws the month as a grid of the same pockets, one per day, on the History
-screen across every course and on each medicine's page for that course alone. A
-cell's fill is how much of the day was taken, in four fixed steps rather than a
+The record draws the month as a grid of the same pockets, one per day: folded
+into the top of the Medicines list across every course, and open on each
+medicine's page for that course alone. A cell's fill is how much of the day was
+taken, in four fixed steps rather than a
 ramp, so Monochrome and Newsprint keep them apart with no hue. Skipped and pending
 doses are left out of the reckoning: a skip is a decision and a pending dose is
 not a lapse, so today reads as full until something is actually missed. A day
 with nothing taken and something missed is the hatch. Pressing a day with anything
 behind it opens a sheet listing its doses; a blank day is not a button. The stamp
-under the month name is the one number a doctor asks for.
+under the month name is the one number a doctor asks for — and it is also what
+the fold prints while it is shut, so the common question is answered without
+opening anything.
 
 Each card on the Medicines screen carries the same pocket read over a whole
 course rather than a day, which is the one thing on that screen printed in the
@@ -53,6 +56,41 @@ gone well is the same fill as a day that went well, and it always will be.
 
 There is no chart library behind it. A month grid is a CSS grid, the cells are
 the app's pockets, and every theme prints it for free.
+
+### One tab for a medicine
+
+Medicines and History were two tabs over the same courses. Both listed every
+course; one printed a course's adherence as a pocket and carried the buttons,
+the other printed the same number as a bar and carried the calendar. A medicine
+had two homes and neither held all of it, so answering "how is this going, and
+should I stop it" meant holding two screens in your head.
+
+There is one tab now. The list says what you are on, how each course is going,
+and what has become of it so far; a card is a link rather than a row of
+controls, and behind it is that medicine's own page — its stats, its month, its
+day-by-day record, and the buttons that end or restart it, on the same screen as
+the evidence you would want before pressing any of them. The all-courses month
+grid folds into the top of the list with its number showing, because a calendar
+is not what anybody opens this tab to ask.
+
+Losing the action row is the other half of it. The list was a stack of cards
+each ending in four buttons you were not going to press; without them a card is
+a name, a pocket and a count, and twice as many fit on the screen.
+
+### Settings, five answers deep
+
+Settings was every control the app has, open, on one scroll: about two and a half
+thousand pixels of it once reminders were on, and no way to learn what any
+setting was currently set to short of scrolling past it.
+
+It is five rows now — Appearance, Feedback, Reminders, Backup, About — each
+printing its own current value, each opening a page of its own. The settings did
+not get smaller; they stopped all being on screen at once, and what is on screen
+now is the answers rather than the controls. Reminders in particular is six
+fields, which is what earned it a page rather than a fold.
+
+Each row and its page are one entry in a single table, so a menu that claims
+something lives somewhere cannot drift from where it actually lives.
 
 ### Handing the list to someone
 
@@ -415,7 +453,7 @@ src/lib/prescription.ts  the live courses as plain text to paste — pure
 src/lib/clipboard.ts     the only place that touches the Clipboard API
 src/lib/store.ts         localStorage plus the mutations, the only stateful module
 src/lib/feedback.ts      whether and how a press answers back
-src/screens/             Today, Medicines, MedicineForm, History, MedicineHistory
+src/screens/             Today, Medicines, Medicine, MedicineForm, Settings
 ```
 
 `schedule.ts` is pure and carries most of the tests. `store.ts` is the only place
